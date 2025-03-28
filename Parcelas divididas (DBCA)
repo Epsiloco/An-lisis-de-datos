@@ -1,0 +1,57 @@
+#Arreglo en parcelas divididas para un experimento bifactorial en un diseño DBCA
+#Apertura de paquetes y datos-----------------------
+  install.packages("readxl")
+  install.packages("doebioresearch")
+  install.packages("performance")
+  install.packages("dplyr")
+  install.packages("ScottKnott")
+  install.packages("agricolae")
+  
+  library(readxl)
+  library(doebioresearch)
+  library(performance)
+  library(dplyr)
+  library(ScottKnott)
+  library(agricolae)
+  datos<-read_excel("soya_PD.xlsx")
+  attach(datos)
+
+  #Resumen de los datos
+  head(datos)
+
+#Gráfico de interacción-------------------------------------------------
+  interaction.plot(E_Surcos, D_sem, Rend, fixed=F, 
+                   xlab="Espaciamiento entre surcos", 
+                   ylab="Rendimiento", 
+                   legend = T, 
+                   type = "b", 
+                   trace.label = "Dist_semillas", 
+                   pch = c(8,16,10,13),
+                   col = c("black", "blue","red","brown"),
+                   main="Gráfico de interacción",
+                   lwd=2,
+                   cex=1,
+                   font.main=4,
+                   font.lab=1)
+  par(bg="white") 
+  
+#Análisis de varianza (ANDEVA)-----------------
+  mod1<-splitplot(datos[4], Bloque, E_Surcos, D_sem, 3); mod1 #El 3 hace referencia al tipo de prueba de comparación de medias a utilizar, el 4 a la columna de la variable de respuesta
+  args(splitplot) #Sirve para ver cuáles son los componentes de la función splitplot
+  
+  summary(mod1)
+#Verificación de los supuestos
+  datos<-datos %>%
+    mutate(across(c(E_Surcos, D_sem, Bloque), .fns = factor))
+  
+  mod2<-aov(Rend~Bloque+E_Surcos+D_sem+E_Surcos:Bloque+E_Surcos:D_sem)  #Correr sin haber corrido el modelo anterior que está en la línea 35
+  summary(mod2) 
+  
+  #Gráfico de residuos vs predichos
+    plot(mod2, 1)  
+  #QQ-plot
+    plot(mod2, 2)
+  
+  #Prueba de Shapiro Wilks
+    res<-residuals(mod2)
+    shapiro.test(res)
