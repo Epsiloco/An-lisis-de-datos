@@ -1,1 +1,31 @@
+library(car)
+library(lattice)
+library(tidyverse)
+library(performance)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(multcomp)
+library(readxl)
+datos<-read_excel("frijol.xlsx")
+attach(datos)
+interaction.plot(Lin, Loc, Rend, fixed=T, xlab="Línea de frijol", ylab="localidad", 
+                 main="Gráfico de interacción",
+                 legend = T, 
+                 trace.label = "Localidad")
+#ANDEVA
+datos<- datos %>%
+  mutate(across(c(Lin, Loc, Bloq, Loc_Bloq), .fns=factor))
+mod <- aov(Rend ~ Lin + Loc + Lin:Loc + Error(Bloq/Loc), data=datos)
+summary(mod)
 
+#Verificación de supuestos
+#Residuos vs predichos
+resp1<-aov(Rend~ Lin*Loc+Bloq/Loc)
+summary(resp1)
+plot(resp1,1)
+#QQ-plot
+plot(resp1,2)
+#Prueba de Shapiro Wilks
+shapiro.test(resp1$residuals)
