@@ -8,24 +8,71 @@ library(lmerTest)
 library(emmeans)
 library(multcomp)
 library(readxl)
+library(ScottKnott)
+library(doebioresearch)
+library(dplyr)
+library(agricolae)
+
+
+
 datos<-read_excel("frijol.xlsx")
 attach(datos)
 interaction.plot(Lin, Loc, Rend, fixed=T, xlab="Línea de frijol", ylab="localidad", 
                  main="Gráfico de interacción",
                  legend = T, 
                  trace.label = "Localidad")
-#ANDEVA
+
+#ANDEVA/Localidad
+Jicaro<-subset(datos, Loc=="Jicaro")  #Para extraer la información solo de la localidad Jicaro
+ANDEVA_jic<-aov(Rend ~ Lin + Bloq, data = Jicaro)
+summary(ANDEVA_jic)
+
+Rancho<-subset(datos, Loc=="Rancho")
+ANDEVA_Ran<-aov(Rend ~ Lin + Bloq, data = Rancho)
+summary(ANDEVA_Ran)
+
+Estancia<- subset(datos, Loc=="Estancia")
+ANDEVA_Est<-aov(Rend ~ Lin + Bloq, data=Estancia)
+summary(ANDEVA_Est)
+
+
+#ANDEVA GENERAL
+
+#Conversión de datos a factores categóricos
 datos<- datos %>%
-  mutate(across(c(Lin, Loc, Bloq, Loc_Bloq), .fns=factor))
-mod <- aov(Rend ~ Lin + Loc + Lin:Loc + Error(Bloq/Loc), data=datos)
+  mutate(across(c(Lin, Loc, Bloq, Loc_Bloq), .fns=factor))  #Primer método para convertir los datos a factores
+
+datos$Loc<- as.factor(datos$Loc)
+datos$Lin<- as.factor(datos$Lin)
+datos$Bloq<- as.factor(datos$Bloq)
+datos$Loc_Bloq<- as.factor(datos$Loc_Bloq) #Segundo método para convertir los datos a factores
+
+mod <- aov(Rend ~ Lin + Loc + Error(Bloq %in% Loc) + Lin:Loc, data=datos)
 summary(mod)
+
+mod1 <- aov(Rend ~ datos$Lin + datos$Loc + Error(datos$Bloq/datos$Loc) + datos$Loc:datos$Lin )
+summary(mod1)
 
 #Verificación de supuestos
 #Residuos vs predichos
-resp1<-aov(Rend~ Lin*Loc+Bloq/Loc)
+resp1<-aov(Rend~ Lin*Loc+ Bloq/Loc)
 summary(resp1)
 plot(resp1,1)
 #QQ-plot
 plot(resp1,2)
 #Prueba de Shapiro Wilks
 shapiro.test(resp1$residuals)
+
+
+#Prueba múltiple de medias (Scott Knott)
+sk1<- SK(mod,
+        data=datos,
+        which="Lin",
+        sig.level = 0.05)
+summary(sk1)
+
+sk2<- SK(mod,
+        data=datos,
+        which="Loc",
+        sig.level = 0.05)
+summary(sk2)
