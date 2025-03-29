@@ -1,1 +1,42 @@
+library(tidyverse)
+library(agricolae)
+library(doebioresearch)
+library(lme4)
+library(car)
+library(readxl)
+library(performance)
+library(dplyr)
+library(ScottKnott)
 
+datos<-rcardatos<-read_xlsx("Parcelas_DCA (1).xlsx")
+attach(datos)
+
+#Interacción entre factores
+interaction.plot(Agua, Temperatura, Resistencia, fixed = F,
+                 xlab="Agua", ylab="Resistencia",
+                 main="Gráfico de interacción",
+                 pch = c(3,4,5,6),
+                 legend = T,
+                 type="b",
+                 cex=1,
+                 lwd=1.5,
+                 col=c("blue","red","green","orange"),
+                 trace.label = "Temperatura",
+                 font.main=4,
+                 font.lab=2)
+
+#ANDEVA
+datos<- datos %>%
+  mutate(across(c(Agua, Temperatura, Repetición), .fns=factor))
+mod <- aov(Resistencia ~ Agua + Temperatura + Agua:Temperatura + Error(Repetición/Agua), data=datos)
+summary(mod)
+
+#Verificación de supuestos
+#Residuos vs predichos
+resp1<-aov(Resistencia~Agua*Temperatura+Repetición/Agua)
+summary(resp1)
+plot(resp1,1)
+#QQ-plot
+plot(resp1,2)
+#Prueba de Shapiro Wilks
+shapiro.test(resp1$residuals)
