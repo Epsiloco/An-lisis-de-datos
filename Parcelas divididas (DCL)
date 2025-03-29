@@ -1,0 +1,58 @@
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+datos<-read_excel("DCL_PD (1).xlsx")
+attach(datos)
+
+#Gráfico de interacción
+interaction.plot(Variedad, Densidades, Rend, fixed=T, legend=T, 
+                 trace.label = "Densidad", 
+                 pch=c(3, 6, 9), type = "b")
+
+
+#ANDEVA
+datos<-datos %>%
+  mutate(across(c(Variedad, Densidades, Fila, Columna), .fns = factor))
+
+mod<-aov(Rend ~ Variedad + Densidades + Fila + Columna + Fila:Columna %in% Variedad + Variedad:Densidades, data=datos)
+summary(mod)
+
+mod1<-aov(Rend ~ Variedad + Densidades + Fila + Columna + Error(Fila:Columna %in% Variedad) + Variedad:Densidades, data=datos)
+summary(mod1)
+
+
+
+#Verificación de supuestos
+#Residuos vs predichos
+resp1<-aov(Rend ~ Variedad*Densidades + Fila*Columna %in% Variedad)
+summary(resp1)
+plot(resp1,1)
+#QQ-plot
+plot(resp1,2)
+#Prueba de Shapiro Wilks
+shapiro.test(resp1$residuals)
+
+
+
+#Prueba múltiple de medias (Scott Knott)
+
+
+sk<-SK(mod1,
+       data=datos,
+       which="Variedad:Densidades") #No he podido hacerlo para la interacción
+
+
+sk1<- SK(mod1,
+         data=datos,
+         which="Variedad",
+         sig.level = 0.05)
+summary(sk1)
+
+sk2<- SK(mod1,
+         data=datos,
+         which="Densidades",
+         sig.level = 0.05)
+summary(sk2)
