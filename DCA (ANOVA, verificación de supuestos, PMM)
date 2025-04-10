@@ -1,1 +1,119 @@
+#Modelo estadístico-matemático (DCA)
+  # Yij=u+Ti+Eij
+  # En R: Yij=Ti
+
+library(car)
+library(readxl)
+library(broom)
+library(dplyr)  # Para manejo de datos
+install.packages("ScottKnott")
+install.packages("agricolae")
+install.packages("ggplot2")
+library(agricolae)
+library(ScottKnott)
+
+datos<-read_excel("nem_lec3.xlsx") #cambiar el nombre del archivo excel o data.frame
+attach(datos)
+head(datos)
+
+
+#ANDEVA------------------------------------------------------
+ANDEVA<- aov(Lar_h ~ trat, data=datos)
+summary(ANDEVA)
+tabla_ANDEVA<-tidy(ANDEVA)
+print(ANDEVA)
+
+#Otra forma de realizar el ANDEVA: con lm
+modelo<- lm(Lar_h ~ trat)
+ANDEVA_lm<- anova(modelo)
+summary(ANDEVA_lm)
+tabla<- tidy(ANDEVA_lm)
+print(ANDEVA_lm)
+
+#Verificacion de supuestos-----------------------------------
+# Normalidad
+datos$residuos<-residuals(ANDEVA)
+datos$predichos<-fitted.values(ANDEVA)
+
+#QQ-plot
+qqnorm(datos$residuos,
+       main="QQ-plot",
+       col="blue",
+       pch=16,
+       xlab="Distribucion normal",
+       ylab="Distribucion_residuos")
+
+qqline(datos$residuos, col="red", lwd=3)
+
+#Shapiro-Wilks
+SW<-shapiro.test(datos$residuos)
+summary(SW)
+print(SW)
+
+#Homocedasticidad
+plot(datos$predichos,
+     datos$residuos, 
+     main="Gráfico de residuos vs predichos", 
+     col="orange", 
+     xlab="predichos", 
+     ylab="residuos", 
+     pch=10)
+
+abline(h=0, col="red", lwd=1)
+
+#PMM----------------
+PMM<- SK(ANDEVA) #La prueba no funciona porque el modelo no cumple con los supuestos
+summary(PMM)
+
+#Transformación Box-Cox-------------------------------
+Lar1<- Lar_h+1
+powerTransform(Lar1)
+summary(powerTransform(Lar1)) #da el p valor para verificar si es necesario transformar
+Datos_trans<-powerTransform(Lar1)
+datos$Larh_trans<- Lar1^0.1307462 #agregar la columna con los datos transformados a la tabla
+names(datos)
+
+#ANDEVA 2: Datos transformados
+ANDEVA2<-aov(Larh_trans ~ trat, data=datos)
+summary(ANDEVA2)
+tabla_ANDEVA2<-tidy(ANDEVA2)
+
+#Verificacion de supuestos con datos transformados-----------------------------------
+# Normalidad
+datos$residuos_trans<-residuals(ANDEVA2)
+datos$predichos_trans<-fitted.values(ANDEVA2)
+
+#QQ-plot
+qqnorm(datos$residuos_trans,
+       main="QQ-plot",
+       col="blue",
+       pch=16,
+       xlab="Distribucion normal",
+       ylab="Distribucion_residuos")
+
+qqline(datos$residuos_trans, col="red", lwd=3)
+
+#Shapiro-Wilks
+SW<-shapiro.test(datos$residuos_trans)
+summary(SW)
+print(SW)
+
+#Homocedasticidad
+plot(datos$predichos_trans,
+     datos$residuos_trans, 
+     main="Gráfico de residuos vs predichos", 
+     col="orange", 
+     xlab="predichos", 
+     ylab="residuos", 
+     pch=10)
+
+abline(h=0, col="red", lwd=1)
+
+#PMM----------------
+PMM<- SK(ANDEVA2, which = "trat", sig.level = 0.05 ) #La prueba no funciona porque el modelo no cumple con los supuestos
+summary(PMM)
+
+
+
+
 
