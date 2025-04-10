@@ -1,1 +1,38 @@
+install.packages("ggplot2")
+install.packages('see')
+library(car)
+library(readxl)
+library(performance)
+library(broom)
+library(tidyverse)
+library(ggplot2)
+datos<-read_excel("madera.y.tension.xlsx")
+view(datos)
+attach(datos)
 
+#Ajuste del modelo polinomial de grado 2: y=B0+B1X+B2X^2
+modelo2<-lm(tension~madera+I(madera^2), data=datos)
+print(modelo2)
+summary(modelo2)
+check_model(modelo2)
+vif(modelo2)
+AIC(modelo2)
+#Quitamos B0 porque no es significativo
+modelo3<-lm(tension~-1+madera+I(madera^2), data=datos)
+summary(modelo3)
+residuos3<-residuals(modelo3)
+predichos3<-fitted(modelo3)
+qqnorm(residuos3)
+qqline(residuos3, col="red")
+SW3<-shapiro.test(residuos3)
+summary(SW3)
+print(SW3)
+plot(predichos3, residuos3)
+abline(h=0, col="red", lwd=3)
+check_model(modelo3)
+AIC(modelo3)
+
+ggplot(datos, aes(x=madera, y=tension)) +
+  geom_point()+
+  geom_smooth(method="lm", se=TRUE, col="red", linetype="solid")+
+  geom_smooth(method="lm", se=TRUE, col="blue", linetype="solid")
