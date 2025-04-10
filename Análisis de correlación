@@ -1,1 +1,16 @@
+library(car)
+library(readxl)
+library(broom)
+salinidad<-read_excel("salinidad1.xlsx")
+View(salinidad)
+attach(salinidad)
 
+
+correlacion<-cor(ca, ce) #para obtener el coeficiente de correlación de Pearson (p)   
+summary(correlacion)
+print(correlacion)
+
+plot(ca, ce, col="blue", pch=12, main="Gráfico de dispersión", xlab="CE", ylab="Ca")
+modelo<-lm(ce ~ ca, data=salinidad)
+summary(modelo)
+abline(modelo, col="red", lwd=2)
