@@ -1,1 +1,63 @@
+install.packages("ggplot2")
+install.packages('see')
+install.packages("tidyverse")
+library(car)
+library(see)
+library(readxl)
+library(performance)
+library(broom)
+library(tidyverse)
+library(ggplot2)
+datos<-read_excel("pino candelillo.xlsx")
+view(datos)
+attach(datos)
 
+
+#Regresion lineal simple: DAP(x) vs H(y)--------------------------
+names(datos)
+modelo1<-lm(H ~ DAP, data=datos)
+summary(modelo1)
+print(modelo1)
+#Modelo: y=Bo+B1x-----y=7.357+0.489x
+plot(DAP, H, main="Gráfico de dispersion (H vs DAP)", xlab="DAP (cm)", ylab="Altura (m)", pch=19, col="blue")
+abline(modelo1, col="red", linetype="solid", lwd=2)
+
+
+#Modelo logarítmico:DAP (X) y Volumen (Y)----------------------
+names(datos)
+modelo2<-lm(log(VOLUMEN)~log(DAP), data=datos)
+summary(modelo2)
+print(modelo2)
+plot(log(DAP), log(VOLUMEN))
+abline(modelo2, col="red", lwd=2 )
+#Modelo resultante: LnY=B0+B1LnX------     LnY=-9.603+2.652*Ln(X)
+
+
+
+
+#Modelo potencial: lo ajustamos a partir del modelo logaritmico--------------
+B1<-exp(-9.603);e
+#Modelo: e^(LnY)=e^(-9.603+2.652*LnX)=(e^-9.603)*(e^2.652*LnX)= y=0.00006752585*x^2.652: y=B0*X^B1
+
+#Modelo final: y=0.00006752585*x^2.652: y=B0*X^B1
+
+
+#Ejemplo para modelo logaritmico y potencial--------------------------------
+#Modelo logarítmico: H(X) y Volumen(Y)
+names(datos)
+modelo_ejemplo<-lm(log(VOLUMEN) ~ log(H))
+summary(modelo_ejemplo)
+print(modelo_ejemplo)
+plot(log(H), log(VOLUMEN))
+abline(modelo_ejemplo, col="red", lwd=2)
+    # LnY=-11.3722*x^3.459
+B0<-exp(-11.3722); B0
+    # Y=1.151109e-05*x^3.459
+
+#Regresión múltiple--------------------------------
+  #DAP (X1) y ALTURA (X2) para predecir el Volumen (Y): modelo lineal múltiple
+names(datos)
+modelo3<-lm(VOLUMEN ~ DAP+H)
+summary(modelo3)
+print(modelo3)
+    # Y=-0.65313+0.02874(X1)+0.01620(X2)  
