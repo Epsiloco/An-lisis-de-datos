@@ -1,0 +1,60 @@
+if(!require(readxl)){install.packages("readxl")}
+if(!require(data.table)){install.packages("data.table")}
+if(!require(agricolae)){install.packages("agricolae")}
+if(!require(lsmeans)){install.packages("emmeans")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(tidyverse)){install.packages("tidyverse")}
+library(readxl)
+library(data.table)        
+library(agricolae)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+datos<- read_excel("StripPlot.xlsx")
+view(datos)
+attach(datos)
+
+#Conversión de cada efecto a factores fijos
+names(datos)
+
+nitr<- factor(datos$Nitrogeno)
+riego<- factor(datos$Riego)
+bloque<-factor(datos$Bloque) #aplicable para realizar el ANOVA con lm
+
+#Variable de respuesta
+resp<-as.vector(datos$Rendimiento)
+resp1<-as.numeric(resp) #aplicable para realizar el ANOVA con lm
+
+#Gráfico de la interacción---------------------------------------------
+names(datos)
+
+datos %>% 
+  ggplot() +
+  aes(x = nitr, color = riego, group = riego, y = resp1) +
+  stat_summary(fun = mean, geom = "point") +
+  stat_summary(fun = mean, geom = "line") +
+  xlab("Dosis de Nitrógeno") + ylab("Rendimiento de maíz")+
+  labs(colour = "Niveles de Riego")
+
+#ANDEVA-------------------------------------------------------
+  #Con la fx de Agricolae
+names(datos)
+ANDEVA<-strip.plot(bloque, nitr, riego, resp1)
+  #Con la fx de modelo lineal y ANOVA
+names(datos)
+modelo<-lm(resp1~bloque+nitr+nitr*bloque+riego+riego*bloque+nitr*riego)
+anova(modelo)
+
+
+
+
+
+#Verificación de los supuestos---------------------------------------------
+plot(modelo,1)
+plot(modelo,2)
+shapiro.test(modelo$residuals)
+
+#PMM (Tukey)-----------------------------------------------------
+FactorA<-HSD.test(resp1,nitr,ANDEVA$gl.a,ANDEVA$Ea);FactorA
+FactorB<-HSD.test(resp1,riego,ANDEVA$gl.b,ANDEVA$Eb);FactorB
+FactorAB<-HSD.test(resp1,riego:nitr,ANDEVA$gl.c,ANDEVA$Ec);FactorAB
