@@ -1,0 +1,65 @@
+if(!require(car)){install.packages("car")}
+if(!require(lattice)){install.packages("lattice")}
+if(!require(tidyverse)){install.packages("tidyverse")}
+if(!require(performance)){install.packages("performance")}
+if(!require(rstatix)){install.packages("rstatix")}
+if(!require(agricolae)){install.packages("agricolae")}
+if(!require(ggpubr)){install.packages("ggpubr")}
+if(!require(readxl)){install.packages("readxl")}
+library(car)
+library(lattice)
+library(tidyverse)
+library(performance)
+library(rstatix)
+library(agricolae)
+library(ggpubr)
+library(readxl)
+install.packages("doebioresearch")
+library(doebioresearch)
+library(dplyr)
+library(ScottKnott)
+
+datos<-read_excel("Parsubdiv.xlsx")
+attach(datos)
+head(datos)
+view(datos)
+names(datos)
+datos$Blo<-as.factor(datos$Blo)
+datos$Lab<-as.factor(datos$Lab)
+datos$Var<-as.factor(datos$Var)
+datos$Fer<-as.factor(datos$Fer)
+
+
+#ANDEVA------------------------------------------------------------------
+names(datos)
+model<-with(datos,ssp.plot(Blo,Lab,Var,Fer,Rendimiento))
+
+#ANDEVA con fx AOV
+names(datos)
+model1<-aov(Rendimiento~Blo+Lab*Var*Fer + Error(Blo/Lab/Var), datos)
+model1
+summary(model1)
+
+#PMM (Tuckey) para cada factor individual-----------------------
+
+gla<-model$gl.a
+glb<-model$gl.b
+glc<-model$gl.c
+Ea<-model$Ea
+Eb<-model$Eb
+Ec<-model$Ec
+names(datos)
+
+s1<-with(datos,LSD.test(Rendimiento,Lab,gla,Ea,console=T))
+s2<-with(datos,LSD.test(Rendimiento,Var,glb,Eb,console=T))
+s3<-with(datos,LSD.test(Rendimiento,Fer,glc,Ec,console=T))
+plot(s1,xlab="Métodos de labranza",las=1,variation = "IQR")                              
+plot(s2,xlab="Variedades de maíz", variation = "IQR")
+plot(s3,xlab="Tipos de fertilizante", variation = "IQR")
+
+#Verificación de los supuestos---------------------------------------------
+#Homogeneidad de vaianzas
+names(datos)
+datos %>% levene_test(Rendimiento~ Lab*Var*Fer)
+bartlett.test(Rendimiento~interaction(Lab,Var,Fer), datos) #Prueba de Barlett
+leveneTest( Rendimiento ~ Lab*Var*Fer, datos) #Prueba de Levene 
