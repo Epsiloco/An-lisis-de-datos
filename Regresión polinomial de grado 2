@@ -11,6 +11,7 @@ view(datos)
 attach(datos)
 
 #Ajuste del modelo polinomial de grado 2: y=B0+B1X+B2X^2
+names(datos)
 modelo2<-lm(tension~madera+I(madera^2), data=datos)
 print(modelo2)
 summary(modelo2)
@@ -20,6 +21,10 @@ AIC(modelo2)
 #Quitamos B0 porque no es significativo
 modelo3<-lm(tension~-1+madera+I(madera^2), data=datos)
 summary(modelo3)
+vif(modelo3)
+print(vif(modelo3))
+AIC(modelo3)
+
 residuos3<-residuals(modelo3)
 predichos3<-fitted(modelo3)
 qqnorm(residuos3)
