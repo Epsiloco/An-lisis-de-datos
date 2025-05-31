@@ -1,1 +1,363 @@
 
+#Práctica libre-----------------------------------------------------------------------------
+a<- c(1, 2, 6, 9)
+b<- c(3, 6, 7, 8)
+M1<- cbind(a,b)
+nomb<-dimnames(MA)<- list(c("f1","f2"), c("c1","c2"))
+help(colnames)
+M2<- dim(a)<- c(2,2)
+dim(b)<- c(2,2)
+MA<- matrix(a, 2,2, dimnames = nomb)
+str(a)
+dim(a)
+class(a)
+class(MA)
+
+?anova  
+??anova
+
+#Instalación de paquetes y activación-------------------------------------------
+install.packages(c("ggplot2", "swirl", "lattice", "car", "fimport", "tseries")) #El c() corresponde a una matriz vectorial donde se insertan de una vez todas las librerias o paquetes a instalar
+install.packages("fimport")
+install.packages("openxlsx")
+library(openxlsx)
+library(ggplot2) #paquete que tiene las fx para graficar
+library(swirl) #es para recibir el curso
+library(lattice)
+library(car)
+library(fimport) #está desactualizado
+library(tseries)
+install.packages("curl",dependencies=TRUE)
+install.packages("httr",dependencies=TRUE)
+install.packages("swirl",dependencies = TRUE)
+library(swirl)
+select_language(language ="spanish", append_rprofile = FALSE)
+
+#Para instalar el curso--------------------------------------------------------- 
+install_course_github("ifunam", "programacion-estadistica-r")
+swirl(resume.class = "programacion-estadistica-r")
+swirl() #Correr el comando para hacer los ejercicios
+#Práctica en Swirl
+library(swirl)
+swirl()
+
+
+
+
+
+#1) PEDIR AYUDA EN R--------------------------------------------------------------
+#Funciones para pedir ayuda (para saber que significa una fx especifica)
+help("read.table") #es una fx que sirve para pedir ayuda respecto a que parametros y terminos se deben colocar en una fx
+example("read.table") #da un ejemplo de la fx
+help.search()  
+
+
+help.start() #Tira toda la información de ayuda, como manuales
+?print #es equivalente a help()
+?print
+help('+') #fx par buscar información sobre operadores matemáticos, se coloca en comillas simples o invertidas
+
+apropos("class") #sirve para buscar funciones dentro de paquetes a partir de expresiones terminos relacionados
+example("read.table")
+??regression #?? sirve para buscar información sobre un tema en especifico, en este caso regresion, que al correrlo nos da una lista de paquetes relacionados con el tema. SE UTILIZA EN CASO DE NO RECORDAR EL NOMBRE DE UNA FX
+vignette("tests") #se usa para obtener info o ayuda sobre un paquete pero lo q hace es buscar un documento cortos que explica cómo usar el paquete o fx
+vignette() #se usa para ver todas las viñetas disponibles
+
+#help() y ? hacen lo mismo
+
+#2) TIPOS DE DATOS Y OPERACIONES BÁSICAS--------------------------
+#Los objetos se clasifican según su estructura (clase) y tipo de datos (tipo) que contienen
+  
+  #por el tipo de datos: numerico (enteros (llevan una L al final--x<-10L) y dec, complejos o complex, infinitos (inf), enteros(integer), datos faltantes (NA) y no determinados (NAN, como la division entre 0)), logico (falso/verd), factor (variable categorica), caracter (texto)
+  #por el tipo de estructura: vector (la +básica y comun, puede ser cualquier numero, contiene solo datos del mismo tipo), matriz (estruct con filas/col), lista(contiene info de distinta clase), arreglo (matriz con mas dimensiones), función, data.frame (tablas de excel) 
+    
+    #Estructura básica de un VECTOR: matriz<- c(1, 2, 3)---contiene el mismo tipo de datos
+    #Estr. de una FUNCION: funcion<- lm(argumento1, argumento 2,....), los argumentos son las instrucciones q se le da a la fx y el codigo es el cuerpo de la fx, los argum son los valores de entrada. Una fx es un tipo de objeto que sigue instrucciones, realiza tareas especificas y arroja una salida o resultado
+
+    
+str() #sirve para ver la estructura interna de un objeto
+ls() #sirve para saber qué objetos tenemos guardados
+attach() #sirve para carga un objeto guardado, para ingresar a los datos del objeto
+
+
+#3) VECTORES (ENTRADAS, ATRIBUTOS Y COERCIÓN)--------------------------
+
+
+#Los atributos son los elementos que tiene un vector, es la info
+# x<- 2 (<- es el simbolo de asignacion del vector)
+#x<- 10 [1] (Los corchetes indican el tamaño del vector (cantidad de datos o longitud), en este caso 1)
+# Coerción: se da cuando en un vector hay atributos de distinto tipo (eso no puede ser), entonces R convierte todos los atributos al dato más básico
+    #Los caracteres no pueden ser convertidos a valores numericos ni logicos
+        #Pero los datos de tipo caracter si pueden representar números: x<- c("3", "black", "verde")
+        #La coerción puede ser predefinida y explicita: en la explicita nosotros decidimos a que tipo de atributo queremos convertir los datos de entrada
+#Funciones:
+c() #c significa concatenar
+vector() #valores de entrada: el tipo de dato (logico, numerico, caracter), el tamaño del vector (length) y el listado de atributos que van dentro----> x<- vector("numeric", length=10, 1, 2, 3, ...), si no se especifican los datos, el programa rellena con 0
+
+  #Coerc. explicita:
+as.numeric()
+as.logical()
+as.character()
+as.matrix()
+example("as.numeric") #atributos como "2" si pueden pasar a ser numéricos aunque sean texto
+class() #sirve para averiguar que tipo de atributos tiene el vector, class(x) donde x es el nombre del objeto que representa al vector...x<- c(1:100)--->1:100 representa el rango de 1 a 100
+
+
+#4) MATRICES----------------------------------------------------
+
+#Matriz:tipo de vector que tiene como atributo dos dimensiones (filas y columnas)
+
+#Funciones:
+  #matrix("1", "2", nrow=2, ncol=3)---nrow y ncol hacen referencia al no. f/c
+matrix(a, 4,4)
+
+matrix(a,
+       nrow = 4,
+       ncol =4,
+       byrow = TRUE,
+       dimnames = nombres)
+
+nombres<-list(c("1","2","3","4"),c("Dato1","Dato2","Dato3","Dato4"))
+
+#byrow indica que los datos se ordenaran por filas (si se pone TRUE), con FALSE se ordenaran por columnas
+#dimnames es para agregar nombres a las filas y columnas a partir de una lista insertada en un vector u objeto
+#El número de filas y col debe coincidir con el número de datos del vector
+#dimnames es una fx especifica para agregar nombres a f/c, en este caso se usa como argumento
+#también: colnames y rownames para asignar nombre solo a filas o col
+
+
+
+dim()   #m<- c(2,3,5). La fx dim(m) sirve para saber saber la dimens (no. f/c)
+#Funciones para convertir vectores a matrices
+a<- c(4, 6, 7, 90)
+m<- c(2, 3, 5, 8)
+dim(m)<- c(2, 2) #c(2,2) es la dimension de la matriz que estamos creando con dim() a partir del vector m
+dimnames(m)<- list(c("Dato1","Dato2"), c("var1","var2"))
+
+matriz1<- cbind(a, m)
+mstriz2<-rbind(a, m)
+  #Estas dos sirven para generar matrices a partir del número de filas y columnas
+dimnames(matriz1)<- list(c("Dato 1", "Dato 2", "Dato 3","Dato 4"), c("COL 1", "COL 2"))
+
+
+
+#5) PRECEDENCIA Y OPERACIONES VECTORIALES-------------------------------------------------------------------------------------------
+
+#La precedencia es el orden en el que R hace las operaciones matemáticas
+    #parentesis (), potencia (^), unarios (-+), multiplic y div (*/), suma y resta (+-), comparación (<,>,==, !=, <=,>=)------ == es igual, != es igual o distinto, valores logicos (&, &&, |, ||, !)---- || significa "o"----TRUE || FALSE, TRUE & FALSE, ! es para negación lógica, asignación (<-, =), de busqueda (?. ??)
+
+#Operaciones entre vectores
+a<- 3
+b<- 5
+a+b
+a*b
+a/b
+c<- a-4
+d<- b+3
+d/c
+sqrt(b) #fx para raiz cuadrada
+raiz<- sqrt(b)
+
+#Operaciones entre matrices
+dato1<- c(2:5)
+dato2<- (1:4)
+Nombre<- list(c("R1", "R2"), c("C1", "C2"))
+m1<- matrix(data=dato1, ncol = 2, nrow = 2, dimname=Nombre)
+View(m1)
+m2<- matrix(dato2, 2,2, dimnames = Nombre)
+View(m2)
+suma<- m1+m2
+m1+m2
+multiplicación<- m1*m2
+raiz<- sqrt(m1*m2)
+
+
+#Ejercicios de vectores
+# Crea un vector a que contenga los números del 10 al 20.
+a<- c(10:20)
+a<- 10:20 #otra forma válida
+
+#Crea un vector b con los múltiplos de 3 entre 3 y 30.
+b<- c(1, 30) #Forma incorrecta, el ejercicio consiste en colocar los multiplos de 3 de tres en tres
+b<- seq(3, 30, by=3)
+
+
+#Crea un vector c que repita el número 5 diez veces
+c<- rep(5, times=10)
+c<- rep.int(5, times = 10) #forma correcta
+
+#Suma los vectores a y b. ¿Qué pasa si tienen diferentes longitudes?
+suma<- a+b #en este caso el vector a y b tienen longitudes distintas
+# a<-c(10,11,12,13,14,15,16,17,18,19,20), b<-c(3,6,9,12,....) (b es más grande q a), lo que hace q R complete la suma con los elementos de a como pueda, lo cual puede generar error
+
+
+#Ejercicios de matríces
+#Crea una matriz 3x3 con los números del 1 al 9.
+matriz_1<- matrix(1:9, nrow = 3, ncol=3, dimnames = DIMNAMES)
+DIMNAMES<-list(c("FILA 1", "FILA 2", "FILA 3"), c("COLUMNA 1", "COLUMNA 2", "COLUMNA 3"))
+
+#Crea una matriz 2x4 con los números del 1 al 8, por filas
+matriz_2<- matrix(1:8, 2,4, byrow=TRUE)
+#Nombra las filas como "F1", "F2" y las columnas como "C1", "C2", "C3", "C4".
+dimnames(matriz_2)<- list(c("F1","F2"), c("C1","C2", "C3","C4"))
+
+#Operaciones con matrices y vectores
+#Crea dos vectores x <- c(1, 2, 3) y y <- c(4, 5, 6) y únelos como filas y luego como columnas usando rbind() y cbind().
+x<- c(1,2,3)
+y<- c(4,5,6)
+v1<- cbind(x,y)
+v2<- rbind(x,y)
+dimnames(v1)<- list(c("F1","F2","F3"), c("C1","C2"))
+dimnames(v2)<- list(c("F1","F2"), c("C1","C2","C3"))
+#Multiplica una matriz 2x3 por un escalar (por ejemplo, 2).
+matriz_2x3<- matrix(1:6, nrow=2, ncol = 3)
+escalar<- 2
+matriz_2x3*escalar
+#Suma dos matrices 2x2 creadas con distintos vectores.
+r<- c(2,4,6,8)
+p<- c(10,5,11,15)
+mat1<- matrix(r, 2,2)
+mat2<- matrix(p, 2,2)
+mat1+mat2
+
+
+#6) LISTAS, FACTORES, DATOS FALTANTES, DATAFRAMES------------------------------------------
+
+  #Lista: objeto que contiene distintos tipos de datos
+    x<- list(c(1,2,3),c("dos", "tres"))
+  
+  #Factor: es un vector que contiene atributos o datos categoricos. Cada atributo va asociado a un número entero
+    y<- factor(c("si", "si", "si", "no"))
+    table(y)
+    y
+    unclass(y) #fx q sirve para saber los valores enteros asociados a cada atributo
+    levels(y)<- c("si", "no") #sirve para indicar el orden en el que iran los atributos en el objeto del factor (y)
+  
+  #Dataframes: tipo de objeto o estruct que contiene datos del mismo tamaño (datos=columnas, tamaño=filas), a diferencia de la matriz puede tener números y caracteres o también valores lógicos
+    z<- data.frame(columna1 = 1:6, columna2= c(1,2,6)) #el número de argumentos (filas) debe ser el mismo para cada columna, sino el programa los rellena con los mismos datos
+    c<- data.frame(col1=1:3, col2=2:4, col3=3:5)
+    read.csv() #sirve para leer archivos
+    read.table()
+    
+    p<- matrix(c(1,2,3,4), 2,2)
+    View(p)
+    c<- data.matrix(p)
+    View(c)    
+    data.matrix(p) #fx que sirve para convertir una matriz a un vector
+    
+  #Datos faltantes
+    #2 tipos: NA=Not Avalible, son datos que no fueron registrados o tomados en campo. NaN (Not a number)=datos q vienen de una operación matemática indeterminada (a/0)
+    t<- c(1,2,NA,4)
+    xx<- c(NaN, 2, NA, 4)
+    is.na(t)               #ambas fxs sirven para saber que datos son NA o NaN. NaN puede ser al mism tiempo un NA.
+    is.nan(xx)
+  
+    #Nombres: sirven para que el código sea más limpio y legible
+    names(t)<- c("pepe", "jose", "ray", "2x99")
+    t
+    dimnames(p)<- list(c("dato1", "dato2"), c("variable1", "variable2")) #para nombrar filas y col de matrices
+    p
+    
+     
+#7) OBTENCIÓN DE SUBCONJUNTOS DE DATOS (subsetting)----------------------------------------------------------------------------------
+    
+    # []: para extraer datos de un mismo tipo
+    # [[]]: para extraer datos de listas y dataframe, devuelve un objeto de clase diferente al objeto del cual se extraen los datos
+    # $: para extraer datos de lista y dataframe. Solo funciona cuando en la lista los datos están agrupados por un nombre o atributo
+    
+    x<- c(1,4,5,7,8)
+    x[2] # [2], el 2 es un índice que indica la posición en la que está el dato
+    y<- x[2] #puedo meterlo en un objeto y tener el dato a la mano para manipularlo
+    x[5]
+    x[[4]]
+    # Para extraer de una matriz:
+    a<- matrix(c(2,3,4,5,1,5), 2,3 )
+     #Hay tres formas para extraer datos de una matriz: matrix[x,y]=devuelve un valor ubicado en la fila x/col y, matrix[x,]=devuelve todos los valores de la fila x, matrix[y]=devuelve todos los valores de la columna y
+    a[1,2]  
+    a[2, ]
+    a[,2]
+    datos<- a[[2,3, drop= FALSE]] # drop hace que el nuevo obj de salida no pierda la clase del objeto original, q en este caso fue una matriz
+    class(datos)
+    #Para extraer de una lista:
+    inventario<- list(1,4,5,"sopa",7)
+    length(inventario) #fx para saber el número de elementos que hay en el objeto 
+    inventario[[2]]
+    inventario[[4]] #El objeto de salida es de tipo vector
+    inventario[4] #da el mismo resultado que [[]], pero el objeto de salida sigue siendo de la clase lista
+    
+      #Lista con datos agrupados en etiquetas o atributos:
+    frutas<- list(dulces=c("naranja", "melón"), acidas=c("limón"))
+    frutas$dulces #nombre de la lista $ nombre de la etiqueta
+    frutas$acidas
+    frutas[["dulces"]]
+    f<- "dulces"
+    frutas[[f]]    
+    g<- c("acidas")
+    frutas[[g]]
+    frutas[2] #el 2 hace referencia al índice o posición donde se encuetran las frutas ácidas, limón en este caso
+    frutas[c(1,2)] #al concatenar obtendré los datos de las 2 posiciones
+    frutas[1,2] #Incorrecto
+    frutas[[c(1,2)]]
+    frutas[[c(1,1)]]
+      
+    #Para listas que tienen anidada otra lista
+    comida<- list(comida= list("huevos", "leche", "carne"), dinero= list(10, 20, 30, 40), personas=2)
+    comida[3]
+    comida[[2]]
+    comida[[1]]
+    comida[1]
+              #Para obtener un dato específico dentro de la lista anidada o bien dentro de una etiqueta:
+    comida[[c(1,2)]]
+                #Estructura básica: objeto[[c(1,2)]]-----el 1 es el índice, 2 es el índice o posición del dato dentro de la lista o dentro del atributo
+    L<- list(baratos=5:10, caros=2:100)
+    L[[c(1,5)]]
+    L[[c(2,90)]]
+    
+    # Para extraer datos de dataframe
+    peso<- data.frame(profes=c(4,9,2), alumnos=c(2,5,8))
+    peso[2,1] 
+    peso[2] 
+    peso[[c(1,2)]]
+    peso$profes   
+  #Para eliminar filas con datos faltantes (NA) de un dataframe: usar fx complete.cases
+    rend<- data.frame(var1=c(2,67,8,99,5,23,11,22,NA,3), var2=c(2,4,77,99,12,11,45,1,44,NA), var3=5:14)
+    # Complete.cases lo que hace es indicar con valores lógicos cuáles son las filas sin datos
+    no_faltantes<- complete.cases(rend)
+    no_faltantes[1:10]
+    nrow(rend) #para saber el número de filas del dataframe, lenght() nos arroja el no. de datos, que en este caso es el número de columnas
+    rend_completo<- rend[no_faltantes,] 
+    rend[no_faltantes,] # rend[x, ], x es el número de filas, en este caso las que no tienen NA
+    datos_faltantes<- rend[!no_faltantes,] # ! es la negación que hace que se extraigan solo las filas sin dato
+    
+    d<- na.omit(rend) #elimina directamente los datos faltantes
+    View(d)
+    
+    no_faltantes2<- rend[complete.cases(rend[ , c("var1","var2")]),]
+    View(no_faltantes2)
+
+#8) LEER Y ESCRIBIR DATOS----------------------------------------------------
+    read.table() #ambas funcionan para archivos txt
+    write.table()
+    
+    #Lectura y escritura de datos de archivo EXCEL:
+    #Primero crearemos el archivo excel desde R, luego lo leeremos:
+    install.packages("openxlsx")
+    library(openxlsx)
+    datos<- data.frame(col1= c(2,4,5, 4.5, NA, 4,7,2), col2= c(3,8,9,7,8,9,6,4))
+    nrow(datos)
+    write.xlsx(datos, "Ejemplo.xlsx", rownames=FALSE)
+    #Leer el dataframe o archivo generado: 
+    datos_nuevos<- read.xlsx("Ejemplo.xlsx")
+    is.na(datos_nuevos)    
+    no_faltantes<- complete.cases(datos_nuevos)
+    complete.cases(datos_nuevos)
+    corregidos<- datos_nuevos[no_faltantes,]
+    View(corregidos)    
+    write.xlsx(corregidos,"Ejemplo2.xlsx", asTable = FALSE, colNames= TRUE, rownames= FALSE)    
+    
+    #Cuando se tiene más de un dataframe:
+    base1<- data.frame(p1=4:8, p2=c(3,6,8,12,9))
+    base2<- data.frame(c1=c(3,5,7), c2=c(66,8,3))
+    write.xlsx(list("hoja1"=base1, "hoja2"=base2), file="Ejemplo3.xlsx", rowNames=FALSE, asTable = FALSE) #En file siempre es importante colocar la extensión .xlsx
+    
+#9) ESTRUCTURAS DE CONTROL--------------------------------------------------------------------
