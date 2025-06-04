@@ -1,0 +1,211 @@
+#ANÁLISIS DE LA BASE DE DATOS
+
+#Carga de liberías-----------------------------------------------------------------------
+install.packages("mice")
+library(mice) #para realizar imputación múltiple
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+
+
+
+
+#Importación de datos---------------------------------------------------
+#Importar archivo Excel:
+datos<- read_excel("Aserradero.xlsx", sheet = 1)
+attach(datos)
+  
+#Convertir columna de interés (que sea categórica) a factor para realizar ANDEVA:
+  
+view(datos)
+datos$rendimiento<- as.factor(datos$rendimiento) #Para convertir la columna a factor en caso de que la variable sea cualitativa
+                                                    #Sustituir rendimiento por la variable categórica 
+  
+  
+  
+  
+#Importar archivo CSV (delimitado por comas):
+data <- read.csv("ruta/al/archivo.csv", stringsAsFactors = FALSE) #stringsAsFactors es para indicar si se desea que las columnas con datos categóricos representan o no factores a ser usados en el ANDEVA (Factor con tratamientos). Si se coloca False se consideran como nombres nada más.
+                                                                      #Columna con nombres o caracteres normales: FALSE
+                                                                      #col. con tratamientos (Factor para ANDEVA): TRUE
+#Importar archivo txt:
+data <- read.table("ruta/al/archivo.txt", header = TRUE, sep = "\t", stringsAsFactors = FALSE) #StringsAsFactors es aplicable para read.CSV y read.table ya q se derivan de la misma fx. No aplica para read.excel
+                                                                                #header=TRUE indica que la primera fila serán los nombres de las columnas
+                                                                                #sep="\t" es la tabulación por la que se separaran las columnas
+  
+  
+  
+  
+  
+  
+  
+#Exploración inicial de datos-----------------------------------------------
+str(datos) #Estructura de los datos: indica nombre de las columnas, el número de datos, número de filas y columnas
+dim(datos) #No.filas y columnas del dataframe
+summary(datos) #Resumen de medidas de tendencia central y dispersión (media, mediana, cuartiles, max, min)
+head(datos) #Primeros y ultimos 6 datos 
+tail(datos)  
+
+  
+#Manejo de datos faltantes--------------------------------------------------------
+            
+              #Tipos de datos faltantes:
+                  # 1) DF completamente al azar: puede imputarse con media, mediana, moda (datos categ)
+                  # 2) DF al azar: imputar con PMM o con mediana o con distrib normal
+                  # 3) DF no aleatorios: imputar con PMM o con KNN
+
+
+#Verificar si hay datos faltantes en el dataframe:
+
+anyNA(datos) #para verificar si hay datos faltantes en la base de datos
+is.na(datos) #para saber en que filas y columnas se localizan los datos faltantes en el dataframe
+colSums((is.na(datos))) # Contar los NA por columna:
+faltantes <- colSums(is.na(datos))
+datos_faltantes <- data.frame(Variable = names(faltantes), Faltantes = faltantes) # Convertir a data frame
+
+# Graficar
+ggplot(datos_faltantes, aes(x = Variable, y = Faltantes)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Datos faltantes por variable") +
+  theme_minimal()
+
+
+
+  
+# Manejo de datos faltantes (NA):
+    
+# 1) Eliminar NA:
+na.omit(datos) 
+datos_limpios<- na.omit(datos)
+view(datos_limpios)
+    
+    
+    
+    
+# 2) Imputación simple (a través de la media):
+    
+rendimiento_media<- datos %>%
+mutate("rendimiento" = ifelse(is.na(rendimiento), mean(rendimiento, na.rm = TRUE), rendimiento))
+    
+    #Estructura básica de ifelse: ifelse(condición, valor_si_verdadero, valor_si_falso)
+    #Indica que si hay datos faltantes, entonces rellenar con la media, si no; dejar el valor original
+    #Al usar el operador pipe (%>%) no hay necesidad de colocar datos%rendimiento para acceder a la columna rendimiento
+    # pipe sirve para encadenar "datos" a la fx mutate. Mutate adiciona o modifica las columnas con la instrucción de "ifelse".                                                      
+
+rendimiento_media #Correr para verificar si se sustituyeron los datos faltantes
+
+#Gráfico de dens. prob (datos originales vs imputados):
+plot(density(datos$rendimiento, na.rm = TRUE), col="red", xlab = "Rendimiento", ylab = "Densidad de prob.", main = "Imputación (media)")
+lines(density(rendimiento_media$rendimiento), col = "blue")
+    
+    legend("topright",                      
+           legend = c("Original", "Imputado (media)"),
+           col = c("red", "blue"),          
+           lty = 1,                         
+           cex = 0.6)       
+    
+    
+    
+    
+# 3) Imputación simple (a través de la mediana: es una forma más robusta de imputar cuando no hay claridad sobre la distribución de los datos, anula el efecto de outliers)
+    
+rendimiento_mediana<- datos %>%
+  mutate("rendimiento" = ifelse(is.na(rendimiento), median(rendimiento, na.rm = TRUE), rendimiento))
+    
+rendimiento_mediana #correr para verificar si la imputación fue exitosa
+
+plot(density(datos$rendimiento, na.rm = TRUE), col="red", xlab = "Rendimiento", ylab = "Densidad de prob.", main = "Imputación (mediana)")
+lines(density(rendimiento_mediana$rendimiento), col = "blue")
+    
+    legend("topright",                      
+           legend = c("Original", "Imputado (media)"),
+           col = c("red", "blue"),          
+           lty = 2,                         
+           cex = 0.4)
+  
+
+      
+
+# 4) Imputación mediante la distribución normal (solo si los datos son biométricos):
+media<- mean(datos$rendimiento, na.rm = TRUE)
+DE<- sd(datos$rendimiento, na.rm = TRUE)
+conteo_NA<- sum(is.na(datos$rendimiento))
+datos_imputados<- rnorm(conteo_NA, mean = media, sd = DE)
+print(datos_imputados)
+datos_nuevos<- datos
+datos_nuevos$rendimiento[is.na(datos_nuevos$rendimiento)]<- datos_imputados #Se introdujeron los datos nuevos o imputados a la columna de interés
+
+
+    # Comparación gráfica de las distribuciones (datos originales vs normal):
+ggplot(datos, aes(x = rendimiento)) +
+  geom_density(color = "blue", linewidth = 1.2, fill = "blue", alpha = 0.3) +
+  stat_function(fun = dnorm, args = list(mean = media, sd = DE), color = "red", linetype = "dashed", linewidth = 1.2) +
+  labs(title = "Comparación entre densidad empírica y normal", x = "Rendimiento", y = "Densidad de probabilidad") +
+  theme_minimal() + xlim(2000, 10000)
+  
+    # Curva de dens. prob de datos originales e imputados:
+plot(density(datos$rendimiento, na.rm = T), col = "red", xlab = "Rendimiento", ylab = "Densidad de prob.", main = "Imputación (D. normal)")
+lines(density(datos_nuevos$rendimiento), col = "blue")
+
+legend("topright",                      
+       legend = c("Original", "Imputado (PMM)"),
+       col = c("red", "blue"),          
+       lty = 1,                         
+       cex = 0.45)
+
+
+
+# 5) Imputación múltiple por coincidencia de media predictiva (PMM):
+
+    #Verificar si hay relación lineal entre las variables mediante análisis de correlación:
+head(datos)
+cor(`peso total`, rendimiento, use = "complete.obs")    
+modelo<- lm(rendimiento ~ `peso total`)
+summary(modelo)
+plot(`peso total`, rendimiento)
+abline(modelo, lwd=2, col = "red")
+
+
+        # PMM cuando se toma solo un dataset
+imputado<- mice(datos, method = "pmm", seed = 123, m = 5) # m es el número de datasets, seed indica q los resultados serán reproducibles
+summary(imputado) #para ver en qué columna se aplicó la imputación
+imputado$imp$rendimiento #para visualizar cuales fueron los valores imputados
+datos_imputados<- complete(imputado, 1) #para seleccionar uno de los 5 conjuntos de datos creados
+print(datos_imputados)
+
+      # Diagrama de dispersión: datos imputados vs originales
+
+plot(datos$`peso total`, datos$rendimiento, col = "red", pch = 16,
+     xlab = "Peso total", ylab = "Rendimiento", main = "Datos originales vs imputados")
+
+points(datos_imputados$`peso total`, datos_imputados$rendimiento, col = "blue", pch = 1)
+legend("bottomright", legend = c("Original", "Imputado"), col = c("red", "blue"), pch = c(16,1))
+
+
+      # Curva de densidad de probabilidad: datos imputados vs originales
+
+plot(density(datos$rendimiento, na.rm = TRUE), col="red", xlab = "Rendimiento", ylab = "Densidad de prob.", main = "Imputación (PMM)")
+lines(density(datos_imputados$rendimiento), col = "blue")
+
+legend("topright",                      
+       legend = c("Original", "Imputado (PMM)"),
+       col = c("red", "blue"),          
+       lty = 1,                         
+       cex = 0.6)
