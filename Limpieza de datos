@@ -1,8 +1,13 @@
 #ANÁLISIS DE LA BASE DE DATOS
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Datos de práctica") #Abrir directorio de trabajo
 
 #Carga de liberías-----------------------------------------------------------------------
 install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+library(GGally)
 library(mice) #para realizar imputación múltiple
+library(corrplot)
 library(readxl)
 library(doebioresearch)
 library(performance)
@@ -30,6 +35,7 @@ library(see)
 #Importación de datos---------------------------------------------------
 #Importar archivo Excel:
 datos<- read_excel("Aserradero.xlsx", sheet = 1)
+view(datos)
 attach(datos)
   
 #Convertir columna de interés (que sea categórica) a factor para realizar ANDEVA:
@@ -209,3 +215,70 @@ legend("topright",
        col = c("red", "blue"),          
        lty = 1,                         
        cex = 0.6)
+
+#Limpieza de la base de datos-----------------------------------------------------------------------
+  #Detección y corrección de errores en los datos
+    #Visualizar valores atípicos
+boxplot(datos$rendimiento)
+outliers<- boxplot(datos$rendimiento, plot = FALSE)$out #para saber qué dato es el atípico
+Q1<- quantile(datos$rendimiento, 0.25, na.rm = TRUE)
+Q3<- quantile(datos$rendimiento, 0.75, na.rm = T )
+IQR<- Q3-Q1
+limite_superior<- Q3+1.5*IQR
+limite_inferior<- Q1-1.5*IQR
+which(datos$rendimiento %in% outliers) #Indica la fila en la que se encuentra el valor atípico según la columna analizada
+
+datos$outlier<- ifelse(datos$rendimiento < limite_inferior| datos$rendimiento>limite_superior, "si","no") #crea una columna para indicar qué datos son atípicos y cuáles no
+
+ggplot(datos, aes(x = "", y = rendimiento)) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 3) +
+  labs(title = "Boxplot de rendimiento con outliers en rojo", y = "Rendimiento") +
+  theme_minimal()
+
+    #Identificación de valores extremos
+summary(datos$rendimiento)
+    #Identificar valores únicos de la variable
+unique(datos$rendimiento)
+  
+  #Normalización de datos al mismo formato
+datos$rendimiento<- as.factor(datos$rendimiento) #para convertir a factor la columna de los tratamientos
+datos$rendimiento<- as.numeric(datos$rendimiento) #convertir la variable respuesta a datos
+
+  #Corrección de nombres de los tratamientos (todos en minúscula)
+datos$rendimiento<- tolower(trimws(datos$rendimiento))
+
+  #Eliminar datos duplicados
+datos<- datos[!duplicated(datos), ]
+
+  # Matriz de correlación para identificación de correlaciones sospechosas entre variables numéricas (indicativo de errores)
+matriz_cor<- cor(datos[, sapply(datos, is.numeric)], use = "complete.obs")
+  #Mapa de calor (Pearson):
+corrplot(matriz_cor, method = "color", type = "upper", 
+         tl.col = "black", tl.srt = 45, addCoef.col = "black")
+  #Matriz de correlación
+GGally::ggpairs(datos[, sapply(datos, is.numeric)])
+
+  #Limpiar errores de digitación:
+# Eliminar espacios en blanco antes y después
+datos$rendimiento <- trimws(datos$rendimiento) #Aplicar sobre factores con tratamientos categóricos
+
+#Detectar filas duplicadas
+
+duplicados <- datos[duplicated(datos), ]
+print(duplicados)
+datos <- datos[!duplicated(datos), ] #Eliminar duplicados
+
+#Corrección de errores de unidad o escala (ej: datos que no corresponan a 100 kg/ha, que soprepasen ese valor)
+
+  # Visualizar valores extremos
+boxplot(datos$rendimiento, main = "Boxplot para detectar posibles errores de unidad")
+
+  # Ver valores mayores a cierto umbral
+datos[datos$rendimiento > 5000, ]  # Ajusta el umbral según la variable
+
+# Unificar nombres (todo mayúscula y sin espacios)
+datos$rendimiento <- toupper(trimws(datos$rendimiento)) #Para columna de los tratamientos
+
+
+
+
