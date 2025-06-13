@@ -1,1 +1,152 @@
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Datos de práctica") #Abrir directorio de trabajo
+install.packages("openxlsx")
+library(openxlsx)
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+
+datos<- read_excel("Aserradero.xlsx", sheet = 1) #En sheet cambiar el número para cambiar de hoja en excel
+attach(datos)
+#Estadística descriptiva para datos sin agrupar---------------------------------------------------------------------------------------------------
+
+#Medidas de tendencia central y dispersión
+
+  # Datos sin NA para las medidas
+rend <- datos$rendimiento[!is.na(datos$rendimiento)] #Para la variable de interés
+
+  # Cálculos
+media <- mean(rend)
+mediana <- median(rend)
+desviacion <- sd(rend)
+varianza <- var(rend)
+coef_var <- (sd(rend) / mean(rend)) * 100
+minimo <- min(rend)
+maximo <- max(rend)
+rango <- maximo - minimo
+iqr <- IQR(rend)                        # Rango intercuartílico
+cuantiles <- quantile(rend, probs = seq(0, 1, 0.25))  # Cuartiles
+percentiles <- quantile(rend, probs = seq(0, 1, 0.10)) # Cada 10%
+outliers<- boxplot(datos$rendimiento, plot = FALSE)$out #para saber qué dato es el atípico
+Q1<- quantile(datos$rendimiento, 0.25, na.rm = TRUE)
+Q3<- quantile(datos$rendimiento, 0.75, na.rm = T )
+IQR<- Q3-Q1
+LS<- Q3+1.5*IQR
+LI<- Q1-1.5*IQR
+NA_count <- sum(is.na(datos$rendimiento))
+
+
+# Crear un cuadro resumen
+resumen <- data.frame(
+  Medida = c("Media", "Mediana", "Desviación estándar", "Varianza", "Coeficiente de variación (%)", 
+             "Mínimo", "Máximo", "Rango", "Rango intercuartílico (IQR)",
+             "1er Cuartil (Q1)", "2do Cuartil (Mediana)", "3er Cuartil (Q3)",
+             "Percentil 10", "Percentil 90", "Limite superior", "Limite inferior", "Atípicos"),
+  Valor = c(
+    media, mediana, desviacion, varianza, coef_var,
+    minimo, maximo, rango, iqr,
+    cuantiles[2], cuantiles[3], cuantiles[4],
+    percentiles[2], percentiles[10], LS, LI, outliers
+  )
+) #Respetar los nombres del vector "Valor" porque corresponden a los objetos de cada métrica estadística
+
+#Guardar las medidas estadísticas en una nueva hoja:
+  # Cargar el archivo Excel original
+wb<- loadWorkbook("Aserradero.xlsx")
+  # Agregar la hoja nueva con el resumen
+addWorksheet(wb, "Resumen_Estadistico")
+writeData(wb, sheet = "Resumen_Estadistico", resumen)
+
+  # Guardar los cambios sin eliminar las demás hojas
+saveWorkbook(wb, "Aserradero.xlsx", overwrite = TRUE)
+
+
+#Gráficos para análisis exploratorio----------------------------------------------------------------------------
+
+#Histograma:
+hist(datos$rendimiento, col = "lightblue", main = "Histograma de rendimiento", xlab = "Rendimiento")
+#Curva de densidad:
+plot(density(datos$rendimiento, na.rm = TRUE), col = "blue", main = "Curva de Densidad", xlab = "Rendimiento")
+#Box-plot:
+boxplot(datos$rendimiento, main = "Boxplot de rendimiento", ylab = "Rendimiento", col = "orange")
+#Gráfico de violín (Box-plot+densidad):
+ggplot(datos, aes(x = "", y = rendimiento)) +
+  geom_violin(fill = "lightgreen") +
+  geom_boxplot(width = 0.1) +
+  labs(title = "Gráfico de Violín", y = "Rendimiento")
+
+  # Crear gráfico combinado
+ggplot(datos_limpios, aes(x = rendimiento)) +
+  
+  geom_density(aes(y = after_stat(scaled)),   # Curva de densidad empírica
+               color = "blue", 
+               size = 1, 
+               fill = NA) +
+  geom_boxplot(aes(y = -0.1),  # Boxplot, más grueso y centrado visualmente debajo de la curva
+               width = 0.3, 
+               fill = "gray80", 
+               color = "black", 
+               outlier.color = "red") +
+  
+  geom_vline(xintercept = quantile(datos_limpios$rendimiento, 0.25), # Líneas verticales
+             linetype = "dotted", color = "darkgreen", size = 0.7) +
+  geom_vline(xintercept = median(datos_limpios$rendimiento), 
+             linetype = "dashed", color = "red", size = 0.7) +
+  geom_vline(xintercept = quantile(datos_limpios$rendimiento, 0.75), 
+             linetype = "dotted", color = "darkgreen", size = 0.8) +
+  
+  annotate("text", x = median(datos_limpios$rendimiento), y = 0.1,   # Anotaciones con etiquetas centradas y más arriba
+           label = "Q2", color = "red", vjust = -0.2, size = 3) +
+  annotate("text", x = quantile(datos_limpios$rendimiento, 0.25), y = 0.1, 
+           label = "Q1", color = "darkgreen", vjust = -0.5, size = 3) +
+  annotate("text", x = quantile(datos_limpios$rendimiento, 0.75), y = 0.1, 
+           label = "Q3", color = "darkgreen", vjust = -0.1, size = 3) +
+  
+  scale_y_continuous(limits = c(-0.3, 1)) +   # Ajustes de ejes para alejar el gráfico (menos zoom)
+  scale_x_continuous(expand = expansion(mult = 0.1)) +
+  
+  labs(
+    title = "Curva de Densidad Empírica y Boxplot de Rendimiento",   # Etiquetas
+    x = "Rendimiento",
+    y = "Densidad escalada"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+
+#QQ-plot:
+qqnorm(datos$rendimiento)
+qqline(datos$rendimiento, col="red")
+#Gráfico de barras (si hay factores):
+ggplot(datos, aes(x = Tratamiento, y = rendimiento)) +
+  geom_bar(stat = "summary", fun = "mean", fill = "skyblue") +
+  labs(title = "Promedio de rendimiento por tratamiento", y = "Rendimiento")
+
+ggplot(datos, aes(x = número, y = rendimiento)) +
+  geom_bar(stat = "summary", fun = "mean", fill = "skyblue") +
+  labs(title = "Promedio de rendimiento por número", y = "Rendimiento")
+
+#Gráfico de pares (si hay varias variables numéricas):
+pairs(datos[, c("rendimiento", "número", "peso total")])
 
