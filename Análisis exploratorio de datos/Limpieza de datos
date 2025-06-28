@@ -5,6 +5,8 @@ setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Datos de práctica") #Ab
 install.packages("mice")
 install.packages("corrplot")
 install.packages("GGally")
+install.packages("fBasics")
+library(fBasics)
 library(GGally)
 library(mice) #para realizar imputación múltiple
 library(corrplot)
