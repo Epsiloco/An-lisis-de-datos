@@ -1,0 +1,113 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+library(MASS)
+
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Base de datos")
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+
+TRt<- factor(trat)
+pul<-as.vector(pulgones)
+pul1<-as.numeric(pul)
+plot(pul1~TRt, xlab="Productos", ylab="Cantidad de Pulgones") #Box plot
+
+m0<-aov(pul1~TRt)    
+anova(m0)
+cv.model(m0)
+
+par(mfrow = c(2,2)) #Análisis gráfico de los residuos
+plot(m0)
+
+
+#Verificación de supuestos
+shapiro.test(m0$res)
+par(mfrow = c(1,1))
+qqPlot(m0)
+
+fit <- fitted(m0)
+res <- residuals(m0)
+res_standard <- rstandard(m0)
+res_student <- rstudent(m0)
+plot(fit,res_standard,xlab="Valores preditos", ylab="Residuos estandarizados",abline(h=0))
+
+bartlett.test(pul1~TRt)
+bartlett.test(m0$res, TRt)
+leveneTest(pul1~TRt)
+
+
+#TRANSFORMACIÓN-----------------------------------------------------------------
+#Transformación logarítmica: Es utilizada cuando consta de cierta proporcionalidad entre las medias y las desviaciones estándar de los tratamientos.
+m1 <- lm (log(pul1) ~ TRt)
+anova(m1)
+cv.model(m1)
+
+#Transformación box cox
+boxcox(m0)
+  #Ampliando la gráfica
+boxcox(m0, lam = seq(-1, 1, 1/10))
+boxcox(m0)
+abline(boxcox(m0),v=0.2)
+  #Para encontrar el valor de lambda
+bc<-boxcox(m0)
+(lambda <- bc$x[which.max(bc$y)])
+
+#ANDEVA con la variable transformada---------------------------------------------------------------
+  #realmente, y^(lambda) es llamada transformación de Tukey
+m2 <- aov (pul1^0.2 ~ TRt, data = DICt)
+anova(m2)
+cv.model(m2)
+  #La “y” transformada debería ser: (y ^ (lambda) -1) / lambda, en lugar de y ^ (lambda).
+
+m3<-lm(((pul1^lambda-1)/lambda) ~ TRt)
+anova(m3)
+cv.model(m3)
+  #Análisis gráfico de los residuo
+
+par(mfrow = c(2,2))
+plot(m2)
+par(mfrow = c(1,1))
+
+
+#Verificación de supuestos
+shapiro.test(m2$res)
+shapiro.test(m3$res)
+
+bartlett.test(m2$res, TRt)
+bartlett.test(m3$res, TRt)
+
+#PMM
+outHSD<-HSD.test(m3, "TRt",console=TRUE)
+SNK.test(m3, "TRt",console=TRUE)
+scheffe.test(m3, "TRt",console=TRUE)
+duncan.test(m3, "TRt",console=TRUE)
+LSD.test(m2, "TRt", p.adj= "bon",console=TRUE) #Bonferroni
+sk <- SK(m2, which= "TRt",  dispersion="se", sig.level=0.05)
+summary(sk)
