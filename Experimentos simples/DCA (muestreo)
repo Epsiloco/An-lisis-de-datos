@@ -1,0 +1,56 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Base de datos")
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+tratm<- factor(Trat)
+repm<- factor(Rep)
+var<-as.vector(Var)
+var1<-as.numeric(var)
+
+#ANDEVA
+mods.dca <- aov(var1~tratm+repm/tratm) #verificar que el error de muestreo sea significativo
+summary(mods.dca)
+mods1.dca<-aov(var1~tratm+Error(repm/tratm)) #Cuando el error de muestreo es significativo
+summary(mods1.dca)
+
+mods2.dca <- aov(var1~tratm) #Cuando el error de muestreo no es significativo (mancomunar CM y gl del ee y em)
+summary(mods2.dca)
+
+plot(mods.dca,1) #grafico de residuos vs predichos
+plot(mods.dca,2)
+
+#Verificación de supuestos
+shapiro.test(mods.dca$res)
+bartlett.test(mods.dca$res, tratm:repm )
+Tukey_sd<-HSD.test(var1, tratm, DFerror = 9, MSerror = 1.694);Tukey_sd #Tukey para errores sin mancomunar
+Tukey_sdd<-HSD.test(var1, tratm, DFerror = 21, MSerror = 0.895);Tukey_sdd #Tukey para errores mancomunados
