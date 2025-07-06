@@ -1,0 +1,67 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Base de datos")
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+TRB<- factor(Trat)
+BLOQ<-factor(rep) #Bloque=rep
+ALT<-as.vector(Long_cm)
+ALT1<-as.numeric(ALT)
+par(mfrow=c(1,1))
+boxplot(split(ALT1,TRB),xlab="trat", ylab="Long_cm")
+
+#ANDEVA
+resaov<-aov(ALT1 ~ BLOQ + TRB)
+anova(resaov)
+cv.model(resaov) 
+
+euc.lm <- lm(ALT1 ~ BLOQ + TRB)
+anova(euc.lm , test="F")
+
+#Verificación de supuestos
+shapiro.test(euc.lm$res)
+qqPlot(resaov)
+fitb <- fitted(resaov)  
+res_stb <- rstandard(resaov)  
+plot(fitb,res_stb,xlab="Valores predichos", ylab="Residuos estandarizados",abline(h=0))
+bartlett.test(ALT1 ~ TRB) #Barlett
+leveneTest(ALT1~TRB, center = "median") #levene
+
+#PMM
+outLSD <-LSD.test(resaov, "TRB",console=TRUE) #LSD
+outHSD<-HSD.test(resaov, "TRB",console=TRUE) #Tukey
+SNK.test(resaov, "TRB",console=TRUE) #SNK
+scheffe.test(resaov, "TRB",console=TRUE) #Scheffe
+duncan.test(resaov, "TRB",console=TRUE) #Duncan
+LSD.test(resaov, "TRB", p.adj= "bon",console=TRUE) #Bonferroni
+sk <- SK(resaov, which= "TRB",  dispersion="se", sig.level=0.05) #SkottKnott
+summary(sk)
