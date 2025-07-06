@@ -1,0 +1,56 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+library(MASS)
+
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Base de datos")
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+
+#ANDEVA
+trat<- factor(Trim)
+
+blo<- factor(Bloque)
+
+vnm<-as.vector(NM)
+
+vnm1<-as.numeric(vnm)
+#Análisis de variancia usando la función (aov) Analysis of Variance
+#Incluyendo error de muestreo y error experimental
+
+moDBA <- aov(vnm1~trat+blo+trat*blo) #Verificar si el em es significativo
+summary(moDBA)
+
+
+moDBA1 <- aov(vnm1~trat+blo) #En este caso no es significativo el error de muestreo y se utiliza el modelo:
+summary(moDBA1)
+
+moDBA2 <- aov(vnm1~trat+blo+Error(blo/trat)) #si el em es significativo
+summary(moDBA2)
