@@ -1,0 +1,57 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+library(MASS)
+
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Base de datos")
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+
+#ANDEVA
+
+tdc<- factor(trat)
+fdc<- factor(fila)
+cdc<- factor(col) #VR
+vdc<-as.vector(rend)
+vdc1<-as.numeric(vdc)
+
+#Incluyendo error de muestreo y error experimental
+mods.dcl <- aov(vdc1~tdc+fdc+cdc+tdc*(fdc*cdc))
+summary(mods.dcl)
+#En este caso no es significativo el error de muestreo y se utiliza el siguiente modelo (Mancomunar errores):
+mods1.dcl <- aov(vdc1~tdc+fdc+cdc)
+summary(mods1.dcl)
+
+#Prueba de Tukey
+Tukey_sc<-HSD.test(vdc1, tdc, DFerror = 22, MSerror = 3.74); Tukey_sc
+
+#Para el caso donde el error de muestreo sea significativo se utiliza el siguiente modelo:
+mods2.dcl <- aov(vdc1~tdc+fdc+cdc+Error(fdc*cdc))
+summary(mods2.dcl)
