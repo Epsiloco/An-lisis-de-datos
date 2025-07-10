@@ -1,0 +1,545 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+install.packages('lsmeans')
+install.packages("ggrepel")
+library(ggrepel)
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+library(MASS)
+library(lsmeans)
+library(scales)
+
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 1)
+
+
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+summary(datos)
+
+
+#CURVAS DE DENSIDAD Y CLIMÁTICAS DIARIAS----------------------------------------------------
+
+# Crear splines suavizados para cada variable
+suavizado_broca <- spline(datos$Día, datos$`No.broca/trampa`, n = 300)
+suavizado_temp <- spline(datos$Día, datos$Temperatura, n = 300)
+suavizado_precip <- spline(datos$Día, datos$Precipitación, n = 300)
+
+# Crear dataframe con datos suavizados
+df_suavizado <- data.frame(
+  Día = suavizado_broca$x,
+  Broca = suavizado_broca$y,
+  Temperatura = suavizado_temp$y,
+  Precipitación = suavizado_precip$y
+)
+
+# Factores de escala
+escala_temp <- max(df_suavizado$Broca) / max(df_suavizado$Temperatura)
+escala_precip <- max(df_suavizado$Broca) / max(df_suavizado$Precipitación)
+
+# Definir manualmente el punto máximo (valor 8539)
+punto_max <- data.frame(Día = datos$Día[which.max(datos$`No.broca/trampa`)],
+                        Broca = 8539)
+
+# Crear el gráfico con ejes correctamente asignados
+ggplot() +
+  # Línea de broca (eje izquierdo) - color gris
+  geom_line(data = df_suavizado, aes(x = Día, y = Broca, color = "Densidad poblacional (brocas/trampa)"), 
+            linewidth = 1.5) +
+  
+  # Punto máximo (valor fijo 8539)
+  geom_point(data = punto_max, aes(x = Día, y = Broca), color = "red", size = 4) +
+  geom_text(data = punto_max, aes(x = Día, y = Broca, 
+                                  label = "Máximo: 8539"), 
+            vjust = -1.5, color = "red", fontface = "bold", size = 4.5) +
+  
+  # Línea de temperatura (eje derecho) - Rojo
+  geom_line(data = df_suavizado, aes(x = Día, y = Temperatura * escala_temp, color = "Temperatura (°C)"), 
+            linewidth = 1.2) +
+  
+  # Línea de precipitación (eje derecho) - Azul
+  geom_line(data = df_suavizado, aes(x = Día, y = Precipitación * escala_precip, color = "Precipitación (mm)"), 
+            linewidth = 1.2) +
+  
+  # Configuración de ejes
+  scale_y_continuous(
+    name = "Densidad poblacional (No. insectos/trampa)",
+    sec.axis = sec_axis(~./escala_temp,
+                        name = "Temperatura (°C) y Precipitación (mm)",
+                        breaks = pretty_breaks(n = 6))
+  ) +
+  
+  # Escala de colores con broca en gris
+  scale_color_manual(
+    name = "",
+    values = c("Densidad poblacional (brocas/trampa)" = "gray50", 
+               "Temperatura (°C)" = "red", 
+               "Precipitación (mm)" = "blue")
+  ) +
+  
+  # Estética
+  labs(
+    title = "Dinámica Poblacional de la Broca del Café",
+    x = "Días"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, 
+                              margin = margin(b = 10)),
+    axis.title.y.left = element_text(color = "black", face = "bold", margin = margin(r = 10)),
+    axis.title.y.right = element_text(color = "black", face = "bold", margin = margin(l = 10)),
+    axis.title.x = element_text(color = "black", face = "bold"),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    axis.ticks = element_line(color = "black", linewidth = 0.5),
+    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 11),
+    plot.margin = margin(25, 25, 25, 25)
+  ) +
+  
+  # Límites del gráfico
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  coord_cartesian(ylim = c(0, max(datos$`No.broca/trampa`) * 1.1),
+                  xlim = c(min(datos$Día), max(datos$Día) * 1.03))
+
+# Guardar el gráfico
+ggsave("broca_temperatura_precipitacion_ajustado.png", width = 12, height = 7, units = "in", dpi = 300)
+
+
+
+#CURVA DE DENSIDAD POBLACIONAL DIARIA-------------------------------------------
+
+# Crear splines suavizados para la variable broca
+suavizado_broca <- spline(datos$Día, datos$`No.broca/trampa`, n = 300)
+
+# Crear dataframe con datos suavizados
+df_suavizado <- data.frame(
+  Día = suavizado_broca$x,
+  Broca = suavizado_broca$y
+)
+
+# Gráfico solo de densidad poblacional con etiquetas en negrita y rojo
+ggplot() +
+  # Curva suavizada en gris
+  geom_line(data = df_suavizado, aes(x = Día, y = Broca, color = "Densidad poblacional (brocas/trampa)"), 
+            linewidth = 1.5) +
+  
+  # Puntos reales por día con etiquetas en negrita y rojo
+  geom_point(data = datos, aes(x = Día, y = `No.broca/trampa`), size = 2, color = "black") +
+  geom_text(data = datos, aes(x = Día, y = `No.broca/trampa`, label = `No.broca/trampa`),
+            vjust = -1, size = 3.5, color = "black", fontface = "bold") +
+  
+  # Configuración de ejes
+  scale_y_continuous(
+    name = "Densidad poblacional (No. insectos/trampa)",
+    breaks = pretty_breaks(n = 8)
+  ) +
+  
+  # Estética de la curva (color gris)
+  scale_color_manual(
+    name = "",
+    values = c("Densidad poblacional (brocas/trampa)" = "gray50")
+  ) +
+  
+  # Estética general
+  labs(
+    title = "Dinámica Poblacional de la Broca del Café",
+    x = "Días"
+  ) +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, 
+                              margin = margin(b = 10)),
+    axis.title.y = element_text(color = "black", face = "bold", margin = margin(r = 10)),
+    axis.title.x = element_text(color = "black", face = "bold"),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    axis.ticks = element_line(color = "black", linewidth = 0.5),
+    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 11),
+    plot.margin = margin(25, 25, 25, 25)
+  ) +
+  
+  coord_cartesian(
+    ylim = c(0, max(datos$`No.broca/trampa`) * 1.1),
+    xlim = c(min(datos$Día), max(datos$Día) * 1.03)
+  )
+
+# Guardar gráfico
+ggsave("curva_densidad_broca.png", width = 12, height = 7, units = "in", dpi = 300)
+
+
+
+
+
+
+
+
+#CURVA DE DENSIDAD POBLACIONAL Y CLIMÁTICA SEMANAL------------------------------------------------------
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 2)
+
+# Crear splines suavizados
+suavizado_broca <- spline(datos$Semana, datos$`No.broca/trampa`, n = 300)
+suavizado_temp <- spline(datos$Semana, datos$Temperatura, n = 300)
+suavizado_precip <- spline(datos$Semana, datos$Precipitación, n = 300)
+
+# Dataframe con datos suavizados
+df_suavizado <- data.frame(
+  Semana = suavizado_broca$x,
+  Broca = suavizado_broca$y,
+  Temperatura = suavizado_temp$y,
+  Precipitación = suavizado_precip$y
+)
+
+# Escalas relativas
+escala_temp <- max(df_suavizado$Broca) / max(df_suavizado$Temperatura)
+escala_precip <- max(df_suavizado$Broca) / max(df_suavizado$Precipitación)
+
+# Submuestreo para etiquetas
+etiquetas_broca <- df_suavizado[seq(1, nrow(df_suavizado), by = 20), ]
+
+# Gráfico
+ggplot() +
+  # Línea de broca suavizada
+  geom_line(data = df_suavizado, aes(x = Semana, y = Broca, color = "Densidad poblacional (brocas/trampa)"), size = 1.5) +
+  
+  # Puntos sobre la curva (valores suavizados)
+  geom_point(data = etiquetas_broca, aes(x = Semana, y = Broca), color = "gray20", size = 2) +
+  
+  # Etiquetas reducidas y estilizadas
+  geom_text(data = etiquetas_broca, aes(x = Semana, y = Broca, label = round(Broca)),
+            vjust = -0.8, color = "black", size = 3.5, fontface = "bold") +
+  
+  # Temperatura y precipitación suavizadas
+  geom_line(data = df_suavizado, aes(x = Semana, y = Temperatura * escala_temp, color = "Temperatura (°C)"), size = 1.2) +
+  geom_line(data = df_suavizado, aes(x = Semana, y = Precipitación * escala_precip, color = "Precipitación (mm)"), size = 1.2) +
+  
+  # Ejes
+  scale_y_continuous(
+    name = "Densidad poblacional (No. insectos/trampa)",
+    breaks = pretty_breaks(n = 10),
+    sec.axis = sec_axis(~ . / escala_temp,
+                        name = "Temperatura (°C) y Precipitación (mm)",
+                        breaks = pretty_breaks(n = 6))
+  ) +
+  scale_x_continuous(
+    name = "Semana",
+    breaks = datos$Semana
+  ) +
+  
+  # Colores de las líneas
+  scale_color_manual(
+    values = c(
+      "Densidad poblacional (brocas/trampa)" = "gray40",
+      "Temperatura (°C)" = "red",
+      "Precipitación (mm)" = "blue"
+    ),
+    name = ""
+  ) +
+  
+  # Estética general
+  labs(title = "Dinámica Poblacional de la Broca del Café por semana") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
+    axis.title.y.left = element_text(color = "black", face = "bold", margin = margin(r = 10)),
+    axis.title.y.right = element_text(color = "black", face = "bold", margin = margin(l = 10)),
+    axis.title.x = element_text(color = "black", face = "bold"),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", size = 0.5),
+    axis.ticks = element_line(color = "black", size = 0.5),
+    panel.grid.major = element_line(color = "gray90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 11),
+    plot.margin = margin(25, 25, 25, 25)
+  ) +
+  
+  # Límites del gráfico
+  coord_cartesian(
+    ylim = c(0, max(datos$`No.broca/trampa`) * 1.15),
+    xlim = c(min(datos$Semana), max(datos$Semana) * 1.03)
+  )
+
+#CURVA DE DENSIDAD POBLACIONAL SEMANAL--------------------------------------------
+# Crear spline suavizado solo para broca
+suavizado_broca <- spline(datos$Semana, datos$`No.broca/trampa`, n = 300)
+
+# Dataframe con datos suavizados
+df_suavizado <- data.frame(
+  Semana = suavizado_broca$x,
+  Broca = suavizado_broca$y
+)
+
+# Submuestreo para etiquetas (cada 20 puntos del suavizado)
+etiquetas_broca <- df_suavizado[seq(1, nrow(df_suavizado), by = 20), ]
+
+# Gráfico solo de densidad
+ggplot() +
+  # Línea suavizada
+  geom_line(data = df_suavizado, aes(x = Semana, y = Broca), color = "gray40", size = 1.5) +
+  
+  # Puntos sobre la curva
+  geom_point(data = etiquetas_broca, aes(x = Semana, y = Broca), color = "gray20", size = 2) +
+  
+  # Etiquetas numéricas
+  geom_text(data = etiquetas_broca, aes(x = Semana, y = Broca, label = round(Broca)),
+            vjust = -0.8, color = "black", size = 3.5, fontface = "bold") +
+  
+  # Ejes
+  scale_y_continuous(
+    name = "Densidad poblacional (No. insectos/trampa)",
+    breaks = pretty_breaks(n = 10)
+  ) +
+  scale_x_continuous(
+    name = "Semana",
+    breaks = datos$Semana
+  ) +
+  
+  # Estética general
+  labs(title = "Dinámica Poblacional semanal de la Broca del Café (Curva de Densidad)") +
+  theme_minimal(base_size = 10) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
+    axis.title.y = element_text(color = "black", face = "bold", margin = margin(r = 10)),
+    axis.title.x = element_text(color = "black", face = "bold"),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", size = 0.5),
+    axis.ticks = element_line(color = "black", size = 0.5),
+    panel.grid.major = element_line(color = "gray90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "none",
+    plot.margin = margin(25, 25, 25, 25)
+  ) +
+  
+  # Límites del gráfico
+  coord_cartesian(
+    ylim = c(0, max(datos$`No.broca/trampa`) * 1.15),
+    xlim = c(min(datos$Semana), max(datos$Semana) * 1.03)
+  )
+
+#CURVAS CLIMÁTICAS---------------------------
+# Crear splines suavizados
+suavizado_temp <- spline(datos$Semana, datos$Temperatura, n = 300)
+suavizado_precip <- spline(datos$Semana, datos$Precipitación, n = 300)
+
+# Dataframe con datos suavizados
+df_clima <- data.frame(
+  Semana = suavizado_temp$x,
+  Temperatura = suavizado_temp$y,
+  Precipitación = suavizado_precip$y
+)
+
+# Submuestreo para etiquetas
+etiquetas_temp <- df_clima[seq(1, nrow(df_clima), by = 20), c("Semana", "Temperatura")]
+etiquetas_precip <- df_clima[seq(1, nrow(df_clima), by = 20), c("Semana", "Precipitación")]
+
+# Escala para precipitación
+escala_precip <- max(df_clima$Temperatura) / max(df_clima$Precipitación)
+df_clima$Precip_scaled <- df_clima$Precipitación * escala_precip
+etiquetas_precip$Precip_scaled <- etiquetas_precip$Precipitación * escala_precip
+
+# Agregar columna para color en leyenda
+df_clima$Variable <- factor(rep(c("Temperatura (°C)", "Precipitación (mm)"), each = nrow(df_clima) / 2))
+etiquetas_temp$Variable <- "Temperatura (°C)"
+etiquetas_precip$Variable <- "Precipitación (mm)"
+
+# Gráfico
+ggplot() +
+  # Línea temperatura suavizada
+  geom_line(data = df_clima, aes(x = Semana, y = Temperatura, color = "Temperatura (°C)"), size = 1.5) +
+  
+  # Línea precipitación suavizada y escalada
+  geom_line(data = df_clima, aes(x = Semana, y = Precip_scaled, color = "Precipitación (mm)"), size = 1.5) +
+  
+  # Puntos reales de temperatura
+  geom_point(data = datos, aes(x = Semana, y = Temperatura), color = "red", size = 2.5) +
+  
+  # Puntos reales de precipitación escalada
+  geom_point(data = datos, aes(x = Semana, y = Precipitación * escala_precip), color = "blue", size = 2.5) +
+  
+  # Etiquetas temperatura
+  geom_text(data = etiquetas_temp, aes(x = Semana, y = Temperatura, label = round(Temperatura, 1)),
+            vjust = -0.8, color = "red", size = 3.2, fontface = "bold") +
+  
+  # Etiquetas precipitación
+  geom_text(data = etiquetas_precip, aes(x = Semana, y = Precip_scaled, label = round(Precipitación, 1)),
+            vjust = -0.8, color = "blue", size = 3.2, fontface = "bold") +
+  
+  # Escalas de ejes
+  scale_y_continuous(
+    name = "Temperatura (°C)",
+    breaks = pretty_breaks(n = 6),
+    sec.axis = sec_axis(~ . / escala_precip, name = "Precipitación (mm)", breaks = pretty_breaks(n = 6))
+  ) +
+  
+  scale_x_continuous(
+    name = "Semana",
+    breaks = datos$Semana
+  ) +
+  
+  scale_color_manual(
+    values = c(
+      "Temperatura (°C)" = "red",
+      "Precipitación (mm)" = "blue"
+    ),
+    name = NULL
+  ) +
+  
+  # Título y estilo
+  labs(title = "Curvas Climáticas: Temperatura y Precipitación Semanal") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
+    axis.title.y.left = element_text(color = "black", face = "bold", margin = margin(r = 10)),
+    axis.title.y.right = element_text(color = "black", face = "bold", margin = margin(l = 10)),
+    axis.title.x = element_text(color = "black", face = "bold"),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", size = 0.5),
+    axis.ticks = element_line(color = "black", size = 0.5),
+    panel.grid.major = element_line(color = "gray90", size = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.text = element_text(color = "black", size = 11),
+    plot.margin = margin(25, 25, 25, 25)
+  ) +
+  
+  coord_cartesian(
+    ylim = c(0, max(df_clima$Temperatura) * 1.2),
+    xlim = c(min(datos$Semana), max(datos$Semana) * 1.03)
+  )
+
+#CURVAS DE DENSIDAD Y CLIMÁTICAS MENSUALES------------------------------------
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 3)
+
+# Convertir Mes a factor o numérico para usar en el gráfico
+# Aquí convertimos meses a números 1,2,3 para facilitar el gráfico
+datos$Mes_num <- match(datos$Mes, c("Mayo", "Junio", "Julio"))
+
+# Crear splines suavizados para cada variable
+suavizado_broca <- spline(datos$Mes_num, datos$`No.broca/trampa`, n = 300)
+suavizado_temp <- spline(datos$Mes_num, datos$Temperatura, n = 300)
+suavizado_precip <- spline(datos$Mes_num, datos$Precipitación, n = 300)
+
+# Crear dataframe con datos suavizados
+df_suavizado <- data.frame(
+  Mes_num = suavizado_broca$x,
+  Broca = suavizado_broca$y,
+  Temperatura = suavizado_temp$y,
+  Precipitación = suavizado_precip$y
+)
+
+# Factores de escala (para alinear temperatura y precipitación con broca)
+escala_temp <- max(df_suavizado$Broca) / max(df_suavizado$Temperatura)
+escala_precip <- max(df_suavizado$Broca) / max(df_suavizado$Precipitación)
+
+# Definir manualmente el punto máximo (valor 30165)
+punto_max <- data.frame(
+  Mes_num = datos$Mes_num[which.max(datos$`No.broca/trampa`)],
+  Broca = 30165
+)
+
+# Para etiquetas x-axis: convertir num a nombre del mes
+nombres_meses <- c("Mayo", "Junio", "Julio")
+
+# Gráfico con ggplot2
+ggplot() +
+  # Línea de broca (eje izquierdo) - color gris
+  geom_line(data = df_suavizado, aes(x = Mes_num, y = Broca, color = "Densidad poblacional (brocas/trampa)"), linewidth = 1.5) +
+  
+  # Punto máximo (valor fijo 30165)
+  geom_point(data = punto_max, aes(x = Mes_num, y = Broca), color = "red", size = 4) +
+  geom_text(data = punto_max, aes(x = Mes_num, y = Broca, label = "Máximo: 30165"), vjust = -1.5, color = "red", fontface = "bold", size = 4.5) +
+  
+  # Línea de temperatura (eje derecho) - Rojo
+  geom_line(data = df_suavizado, aes(x = Mes_num, y = Temperatura * escala_temp, color = "Temperatura (°C)"), linewidth = 1.2) +
+  
+  # Línea de precipitación (eje derecho) - Azul
+  geom_line(data = df_suavizado, aes(x = Mes_num, y = Precipitación * escala_precip, color = "Precipitación (mm)"), linewidth = 1.2) +
+  
+  # Configuración de ejes
+  scale_y_continuous(
+    name = "Densidad poblacional (No. insectos/trampa)",
+    sec.axis = sec_axis(~./escala_temp, name = "Temperatura (°C) y Precipitación (mm)", breaks = pretty_breaks(n = 6))
+  ) +
+  
+  scale_x_continuous(
+    name = "Mes",
+    breaks = datos$Mes_num,
+    labels = nombres_meses
+  ) +
+  
+  # Escala de colores con broca en gris
+  scale_color_manual(
+    name = "",
+    values = c(
+      "Densidad poblacional (brocas/trampa)" = "gray50",
+      "Temperatura (°C)" = "red",
+      "Precipitación (mm)" = "blue"
+    )
+  ) +
+  
+  # Estética
+  labs(title = "Dinámica Poblacional de la Broca del Café",
+       x = "Mes") +
+  
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
+    axis.title.y.left = element_text(color = "black", face = "bold", margin = margin(r = 10)),
+    axis.title.y.right = element_text(color = "black", face = "bold", margin = margin(l = 10)),
+    axis.title.x = element_text(color = "black", face = "bold"),
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black", linewidth = 0.5),
+    axis.ticks = element_line(color = "black", linewidth = 0.5),
+    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 11),
+    plot.margin = margin(25, 25, 25, 25)
+  ) +
+  
+  # Límites del gráfico
+  coord_cartesian(ylim = c(0, max(datos$`No.broca/trampa`) * 1.1),
+                  xlim = c(min(datos$Mes_num), max(datos$Mes_num) * 1.03))
+
+# Guardar gráfico
+ggsave("broca_temperatura_precipitacion_mensual.png", width = 12, height = 7, units = "in", dpi = 300)
