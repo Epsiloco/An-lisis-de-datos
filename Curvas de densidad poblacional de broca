@@ -96,7 +96,7 @@ ggplot() +
   # Escala de colores con broca en gris
   scale_color_manual(
     name = "",
-    values = c("Densidad poblacional (brocas/trampa)" = "gray50", 
+    values = c("Densidad poblacional (brocas/trampa)" = "#006400", 
                "Temperatura (°C)" = "red", 
                "Precipitación (mm)" = "blue")
   ) +
@@ -117,7 +117,7 @@ ggplot() +
     axis.text = element_text(color = "black"),
     axis.line = element_line(color = "black", linewidth = 0.5),
     axis.ticks = element_line(color = "black", linewidth = 0.5),
-    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.major = element_line(color = "gray", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     legend.position = "bottom",
     legend.box = "horizontal",
@@ -132,7 +132,11 @@ ggplot() +
                   xlim = c(min(datos$Día), max(datos$Día) * 1.03))
 
 # Guardar el gráfico
-ggsave("broca_temperatura_precipitacion_ajustado.png", width = 12, height = 7, units = "in", dpi = 300)
+ggsave("broca_temperatura_precipitacion_ajustado.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+
+
+
+
 
 
 
@@ -167,7 +171,7 @@ ggplot() +
   # Estética de la curva (color gris)
   scale_color_manual(
     name = "",
-    values = c("Densidad poblacional (brocas/trampa)" = "gray50")
+    values = c("Densidad poblacional (brocas/trampa)" = "#006400")
   ) +
   
   # Estética general
@@ -185,7 +189,7 @@ ggplot() +
     axis.text = element_text(color = "black"),
     axis.line = element_line(color = "black", linewidth = 0.5),
     axis.ticks = element_line(color = "black", linewidth = 0.5),
-    panel.grid.major = element_line(color = "gray90", linewidth = 0.3),
+    panel.grid.major = element_line(color = "grey", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     legend.position = "bottom",
     legend.title = element_blank(),
@@ -199,7 +203,7 @@ ggplot() +
   )
 
 # Guardar gráfico
-ggsave("curva_densidad_broca.png", width = 12, height = 7, units = "in", dpi = 300)
+ggsave("curva_densidad_broca.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
 
 
 
@@ -263,7 +267,7 @@ ggplot() +
   # Colores de las líneas
   scale_color_manual(
     values = c(
-      "Densidad poblacional (brocas/trampa)" = "gray40",
+      "Densidad poblacional (brocas/trampa)" = "#006400",
       "Temperatura (°C)" = "red",
       "Precipitación (mm)" = "blue"
     ),
@@ -295,6 +299,8 @@ ggplot() +
     ylim = c(0, max(datos$`No.broca/trampa`) * 1.15),
     xlim = c(min(datos$Semana), max(datos$Semana) * 1.03)
   )
+# Guardar gráfico
+ggsave("Densidad semanal y datos climáticos.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
 
 #CURVA DE DENSIDAD POBLACIONAL SEMANAL--------------------------------------------
 # Crear spline suavizado solo para broca
@@ -312,10 +318,10 @@ etiquetas_broca <- df_suavizado[seq(1, nrow(df_suavizado), by = 20), ]
 # Gráfico solo de densidad
 ggplot() +
   # Línea suavizada
-  geom_line(data = df_suavizado, aes(x = Semana, y = Broca), color = "gray40", size = 1.5) +
+  geom_line(data = df_suavizado, aes(x = Semana, y = Broca), color = "#006400", size = 1.5) +
   
   # Puntos sobre la curva
-  geom_point(data = etiquetas_broca, aes(x = Semana, y = Broca), color = "gray20", size = 2) +
+  geom_point(data = etiquetas_broca, aes(x = Semana, y = Broca), color = "black", size = 2) +
   
   # Etiquetas numéricas
   geom_text(data = etiquetas_broca, aes(x = Semana, y = Broca, label = round(Broca)),
@@ -352,6 +358,9 @@ ggplot() +
     ylim = c(0, max(datos$`No.broca/trampa`) * 1.15),
     xlim = c(min(datos$Semana), max(datos$Semana) * 1.03)
   )
+# Guardar gráfico
+ggsave("Densidad poblacional y datos climáticos semanales.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+
 
 #CURVAS CLIMÁTICAS---------------------------
 # Crear splines suavizados
@@ -444,6 +453,9 @@ ggplot() +
     ylim = c(0, max(df_clima$Temperatura) * 1.2),
     xlim = c(min(datos$Semana), max(datos$Semana) * 1.03)
   )
+# Guardar gráfico
+ggsave("Datos climáticos semanales.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+
 
 #CURVAS DE DENSIDAD Y CLIMÁTICAS MENSUALES------------------------------------
 datos<- read_excel("Broca_ADC (1).xlsx", sheet = 3)
@@ -505,11 +517,11 @@ ggplot() +
     labels = nombres_meses
   ) +
   
-  # Escala de colores con broca en gris
+  # Escala de colores con broca en verde
   scale_color_manual(
     name = "",
     values = c(
-      "Densidad poblacional (brocas/trampa)" = "gray50",
+      "Densidad poblacional (brocas/trampa)" = "#006400",
       "Temperatura (°C)" = "red",
       "Precipitación (mm)" = "blue"
     )
@@ -542,4 +554,4 @@ ggplot() +
                   xlim = c(min(datos$Mes_num), max(datos$Mes_num) * 1.03))
 
 # Guardar gráfico
-ggsave("broca_temperatura_precipitacion_mensual.png", width = 12, height = 7, units = "in", dpi = 300)
+ggsave("Densidad poblacional y datos climáticos mensuales.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
