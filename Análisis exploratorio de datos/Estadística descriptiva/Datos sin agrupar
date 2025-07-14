@@ -1,6 +1,10 @@
-setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Datos de práctica") #Abrir directorio de trabajo
-install.packages("openxlsx")
-library(openxlsx)
+install.packages("modeest")
+install.packages("psych")
+library(fBasics)
+library(psych)
+library(modeest)
+library(tribble)
+library(ggrepel)
 library(GGally)
 library(mice) #para realizar imputación múltiple
 library(corrplot)
@@ -24,6 +28,9 @@ library(multcomp)
 library(rstatix)
 library(ggpubr)
 library(see)
+library(MASS)
+library(lsmeans)
+library(scales)
 
 datos<- read_excel("Aserradero.xlsx", sheet = 1) #En sheet cambiar el número para cambiar de hoja en excel
 attach(datos)
@@ -149,4 +156,115 @@ ggplot(datos, aes(x = número, y = rendimiento)) +
 
 #Gráfico de pares (si hay varias variables numéricas):
 pairs(datos[, c("rendimiento", "número", "peso total")])
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+#BYRONG 
+
+
+
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 1)
+
+str(datos)
+summary(datos)
+is.na(datos)
+anyNA(datos)
+colSums(is.na(datos))
+attach(datos)
+
+#Estadística descriptiva
+fivenum(`No.broca/trampa`)
+media<- mean(`No.broca/trampa`)
+mediana<- median(`No.broca/trampa`)
+moda<- mlv(`No.broca/trampa`, method = "mfv") #si aparecen todos los valores quiere decir que la frecuencia es 1 (no hay moda)
+moda1<- NA
+print(moda)
+DE<- sd(`No.broca/trampa`)
+varianza<- var(`No.broca/trampa`)
+CV<- (DE/media)*100
+rango1<- max(`No.broca/trampa`) - min(`No.broca/trampa`)
+rango2<- range(`No.broca/trampa`)
+n<- length(`No.broca/trampa`)
+EE<- (DE/sqrt(n))
+
+
+quantile(`No.broca/trampa`)
+fivenum(`No.broca/trampa`)
+summary(`No.broca/trampa`)
+cuantiles<- quantile(`No.broca/trampa`, c(0.25, 0.5, 0.75))
+Q1<- quantile(`No.broca/trampa`, 0.25)
+Q2<- quantile(`No.broca/trampa`, 0.5)
+Q3<- quantile(`No.broca/trampa`, 0.75)
+IQR<- IQR(`No.broca/trampa`)
+IQR2<- quantile(`No.broca/trampa`, 0.75)-quantile(`No.broca/trampa`, 0.25)
+
+sw<- shapiro.test(`No.broca/trampa`)
+print(sw)
+#Media ponderada
+temp<- datos$`No.broca/trampa`/sum(`No.broca/trampa`)
+MP<- weighted.mean(`No.broca/trampa`, temp)
+#Media geométrica
+MG<- geometric.mean(`No.broca/trampa`)
+geometric1<- function(`No.broca/trampa`) exp(sum(log(`No.broca/trampa`))/length(`No.broca/trampa`))
+geometric1(`No.broca/trampa`)
+#Media armónica
+MA<- 1/mean(1/`No.broca/trampa`)
+#Media cuadrática
+MC1<- sqrt(mean((`No.broca/trampa`)^2)/n)
+
+#Asimetría y kurtosis
+Asimetria<- skewness(`No.broca/trampa`)
+print(Asimetria)
+kurtosis<- kurtosis(`No.broca/trampa`) 
+print(kurtosis)
+
+
+
+
+ggplot(datos, aes(x = `No.broca/trampa`)) +
+  geom_density(color = "blue", linewidth = 1.2, fill = "blue", alpha = 0.3) +
+  labs(title = "Distribución de probabilidad", x = "Dens. poblacional", y = "Densidad de probabilidad") +
+  theme_minimal() + xlim(800, 3000)
+
+
+
+Descriptiva1<- data.frame(media=media,
+                          mediana=mediana,
+                          moda=moda1,
+                          DE=DE,
+                          varianza=varianza,
+                          EE=EE,
+                          n=n,
+                          rango=rango1,
+                          CV=CV,
+                          Q1=Q1,
+                          Q2=Q2,
+                          Q3=Q3,
+                          MP=MP,
+                          MA=MA,
+                          MG=MG,
+                          MC = MC1,
+                          Asimetria=Asimetria,
+                          kurtosis=kurtosis)
+
+
+
+sapply(list(media, mediana, moda, n, CV, DE, varianza, EE, rango1), length)
+
+
+options(scipen = 999)  # Desactiva notación científica
+descriptiva2<- data.frame(Medida = c("media", "mediana", "moda", "n", "rango", "varianza", "DE", "CV", "EE", "IQR", "MP", "MA", "MC", "Q1", "Q2", "Q3", "MG", "Asimetria", "Kurtosis"),
+                          Valor = c(media, mediana, moda1, n, rango1, varianza, DE, CV, EE, IQR, MP, MA, MC, Q1, Q2, Q3, MG, Asimetria, kurtosis))
+
+sapply(list(media, mediana, moda1, n, rango1, varianza, DE, CV, EE, IQR, MP, MA, MC, cuantiles, MG), length)
+
+
+stem(`No.broca/trampa`, scale = 1, width = 80, atom = 1e-08)
+
+
+
+#Con fbasics:-----------------------------------------------------------------------------
+ED<- round(basicStats(`No.broca/trampa`, ci = 0.95), 2)
+view(ED)
+
 
