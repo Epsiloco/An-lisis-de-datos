@@ -163,108 +163,100 @@ pairs(datos[, c("rendimiento", "número", "peso total")])
 
 
 
-datos<- read_excel("Broca_ADC (1).xlsx", sheet = 1)
+install.packages("modeest")
+install.packages("psych")
+library(openxlsx)
+library(fBasics)
+library(psych)
+library(modeest)
+library(tribble)
+library(ggrepel)
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+library(MASS)
+library(lsmeans)
+library(scales)
 
-str(datos)
-summary(datos)
-is.na(datos)
-anyNA(datos)
-colSums(is.na(datos))
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 2)
 attach(datos)
+str(datos)
 
-#Estadística descriptiva
-fivenum(`No.broca/trampa`)
-media<- mean(`No.broca/trampa`)
-mediana<- median(`No.broca/trampa`)
-moda<- mlv(`No.broca/trampa`, method = "mfv") #si aparecen todos los valores quiere decir que la frecuencia es 1 (no hay moda)
-moda1<- NA
+ED1<- round(basicStats(Precipitación, ci = 0.95), 2)
+print(ED1)
+
+media<- mean(Precipitación)
+print(media)
+mediana<- median(Precipitación)
+moda<- mlv(Precipitación, method = "mfv")
 print(moda)
-DE<- sd(`No.broca/trampa`)
-varianza<- var(`No.broca/trampa`)
+moda1<- NA
+n<- length(Precipitación)
+DE<- sd(Precipitación)
+varianza<- var(Precipitación)
 CV<- (DE/media)*100
-rango1<- max(`No.broca/trampa`) - min(`No.broca/trampa`)
-rango2<- range(`No.broca/trampa`)
-n<- length(`No.broca/trampa`)
-EE<- (DE/sqrt(n))
+EE<- DE/sqrt(n)
+quantile(Precipitación)
+summary(Precipitación)
+Q1<- quantile(Precipitación, 0.25)
+Q2<- quantile(Precipitación, 0.5)
+Q3<- quantile(Precipitación, 0.75)
+quantiles<- quantile(Precipitación, c(0.1, 0.25, 0.5, 0.75))
+print(quantiles)
 
-
-quantile(`No.broca/trampa`)
-fivenum(`No.broca/trampa`)
-summary(`No.broca/trampa`)
-cuantiles<- quantile(`No.broca/trampa`, c(0.25, 0.5, 0.75))
-Q1<- quantile(`No.broca/trampa`, 0.25)
-Q2<- quantile(`No.broca/trampa`, 0.5)
-Q3<- quantile(`No.broca/trampa`, 0.75)
-IQR<- IQR(`No.broca/trampa`)
-IQR2<- quantile(`No.broca/trampa`, 0.75)-quantile(`No.broca/trampa`, 0.25)
-
-sw<- shapiro.test(`No.broca/trampa`)
+as<- skewness(Precipitación)
+kurtosis<- kurtosis(Precipitación)
+sw<- shapiro.test(Precipitación)
 print(sw)
-#Media ponderada
-temp<- datos$`No.broca/trampa`/sum(`No.broca/trampa`)
-MP<- weighted.mean(`No.broca/trampa`, temp)
-#Media geométrica
-MG<- geometric.mean(`No.broca/trampa`)
-geometric1<- function(`No.broca/trampa`) exp(sum(log(`No.broca/trampa`))/length(`No.broca/trampa`))
-geometric1(`No.broca/trampa`)
-#Media armónica
-MA<- 1/mean(1/`No.broca/trampa`)
-#Media cuadrática
-MC1<- sqrt(mean((`No.broca/trampa`)^2)/n)
 
-#Asimetría y kurtosis
-Asimetria<- skewness(`No.broca/trampa`)
-print(Asimetria)
-kurtosis<- kurtosis(`No.broca/trampa`) 
-print(kurtosis)
+MG<- geometric.mean(Precipitación)
+geometric<- function(Precipitación) exp(sum(log(Precipitación))/n)
+geometric(Precipitación)
+
+p<- Temperatura/sum(Temperatura)
+MP<- weighted.mean(Precipitación, p)
+
+MC<- sqrt(mean((Precipitación)^2))
+MA<- 1/mean(1/Precipitación)
 
 
+sapply(list(as, CV, DE, EE, kurtosis, MA, MC, media, mediana, MG, moda1, MP, n, Q1, Q2, Q3, varianza), length)
+ED2<- data.frame(Estadistica = c("as", "CV", "DE", "EE", "kurtosis", "MA", "MC", "media", "mediana", "MG", "moda1", "MP", "n", "Q1", "Q2", "Q3", "varianza"),
+                 Valor= c(as, CV, DE, EE, kurtosis, MA, MC, media, mediana, MG, moda1, MP, n, Q1, Q2, Q3, varianza))
 
+ED1_df<- as.data.frame(ED1)
+d<- loadWorkbook("Broca_ADC (1).xlsx")
+addWorksheet(d, "Lluvia")
+writeData(d, sheet = "Lluvia", x = ED1_df, colNames = T)
+saveWorkbook(d, "Broca_ADC (1).xlsx", overwrite = T)
+excel_sheets("Broca_ADC (1).xlsx")
+datos<- read_excel("Broca_ADC.xlsx", sheet=5)
 
-ggplot(datos, aes(x = `No.broca/trampa`)) +
-  geom_density(color = "blue", linewidth = 1.2, fill = "blue", alpha = 0.3) +
-  labs(title = "Distribución de probabilidad", x = "Dens. poblacional", y = "Densidad de probabilidad") +
-  theme_minimal() + xlim(800, 3000)
-
-
-
-Descriptiva1<- data.frame(media=media,
-                          mediana=mediana,
-                          moda=moda1,
-                          DE=DE,
-                          varianza=varianza,
-                          EE=EE,
-                          n=n,
-                          rango=rango1,
-                          CV=CV,
-                          Q1=Q1,
-                          Q2=Q2,
-                          Q3=Q3,
-                          MP=MP,
-                          MA=MA,
-                          MG=MG,
-                          MC = MC1,
-                          Asimetria=Asimetria,
-                          kurtosis=kurtosis)
-
-
-
-sapply(list(media, mediana, moda, n, CV, DE, varianza, EE, rango1), length)
-
-
-options(scipen = 999)  # Desactiva notación científica
-descriptiva2<- data.frame(Medida = c("media", "mediana", "moda", "n", "rango", "varianza", "DE", "CV", "EE", "IQR", "MP", "MA", "MC", "Q1", "Q2", "Q3", "MG", "Asimetria", "Kurtosis"),
-                          Valor = c(media, mediana, moda1, n, rango1, varianza, DE, CV, EE, IQR, MP, MA, MC, Q1, Q2, Q3, MG, Asimetria, kurtosis))
-
-sapply(list(media, mediana, moda1, n, rango1, varianza, DE, CV, EE, IQR, MP, MA, MC, cuantiles, MG), length)
-
-
-stem(`No.broca/trampa`, scale = 1, width = 80, atom = 1e-08)
-
-
-
-#Con fbasics:-----------------------------------------------------------------------------
-ED<- round(basicStats(`No.broca/trampa`, ci = 0.95), 2)
-view(ED)
+addWorksheet(d, "ED")
+writeData(d, sheet = "ED", x = ED2, rowNames = T)
+saveWorkbook(d, "Broca_ADC (1).xlsx", overwrite = T)
+excel_sheets("Broca_ADC (1).xlsx")
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 6)
+print(datos)
 
 
