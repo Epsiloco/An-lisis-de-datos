@@ -12,7 +12,7 @@ boxplot(Precipitación, width = 0.3, main = "Box plot de Precipitación",
 points(mean(Precipitación), col = "red", pch = 19)
 abline(h = li, col = "red", lwd = 2)
 abline(h = ls, col = "red", lwd = 2)
-ggsave("box plot.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+
 
 
 ggplot(datos, aes(x = "", y = Precipitación)) +
@@ -51,4 +51,4 @@ ggplot(datos, aes(x = "", y = Precipitación)) +
     axis.title.y = element_text(size = 12),
     panel.grid.major.y = element_line(color = "gray", linetype = "dotted", size = 0.2)
   )
-ggsave("box plot.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+ggsave("box plot.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)  #solo funciona con ggplot
