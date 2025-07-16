@@ -111,3 +111,139 @@ ggplot() +
        x = "Variable", y = "Valor") +
   theme_minimal()
 ggsave("box plot4.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)  #solo funciona con ggplot
+
+
+
+
+
+ #Gráfico de barras------------------------------
+
+#Según la frecuencia absoluta:
+
+frecuencia <- c(sum(!is.na(datos$Precipitación)),     # Contar cuántos valores válidos tiene cada variable
+                sum(!is.na(datos$`No.broca/trampa`)),
+                sum(!is.na(datos$Temperatura)))
+
+variables <- c("Precipitación", "No.broca/trampa", "Temperatura")
+
+tabla <- data.frame(variables, ni = frecuencia)
+
+n <- sum(frecuencia)          #Frecuencia relativa
+tabla$fi <- tabla$ni / n
+print(tabla)
+
+barplot(tabla$ni,
+        names.arg = tabla$variables,
+        col = c("skyblue", "orange", "violet"),
+        ylab = "Frecuencia absoluta (ni)",
+        main = "Frecuencia de datos por variable")
+
+
+#Según la media:
+
+medias <- c(mean(datos$Precipitación, na.rm = TRUE),
+            mean(datos$`No.broca/trampa`, na.rm = TRUE),
+            mean(datos$Temperatura, na.rm = TRUE))
+
+tabla_medias <- data.frame(variables, media = medias)  #crear tabla
+print(tabla_medias)
+
+barplot(tabla_medias$media,
+        names.arg = tabla_medias$variables,
+        col = c("skyblue", "orange", "violet"),
+        ylab = "Media",
+        main = "Media de cada variable")
+
+
+#Para representar todos los datos según una variable categórica
+var<- c("Día", "Densidad")
+barplot(`No.broca/trampa`, col = "blue", border = "black",
+        names.arg = Día,
+        xlab = "Tiempo (Días)",
+        ylab = "Densidad poblacional")
+
+
+
+
+#Gráfico de pastel------------------------------------
+
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 1)   #para datos diarios
+str(datos)
+
+par(mar = c(2, 2, 4, 2))         
+par(cex.main = 1)              
+par(cex = 0.7)
+
+porcentajes <- round(datos$`No.broca/trampa` / sum(datos$`No.broca/trampa`) * 100, 1)
+etiquetas_porcentaje <- paste(datos$Día, " (", porcentajes, "%)", sep = "")
+
+pie(datos$`No.broca/trampa`,
+    labels = etiquetas_porcentaje,
+    col    = rainbow(length(datos$`No.broca/trampa`)),
+    main   = "Distribución de No.broca/trampa por Día",
+    cex = 0.75,
+    radius = 1.2)
+
+
+datos<- read_excel("Broca_ADC (1).xlsx", sheet = 2) #para datos semanales
+str(datos)
+
+par(mar = c(2, 2, 4, 2))         
+par(cex.main = 1)              
+par(cex = 0.8)
+
+porcentajes <- round(datos$`No.broca/trampa`/ sum(datos$`No.broca/trampa`) * 100, 1)
+etiquetas_porcentaje <- paste(datos$Semana, " (", porcentajes, "%)", sep = "")
+
+pie(datos$`No.broca/trampa`,
+    labels = etiquetas_porcentaje,
+    col    = rainbow(length(datos$Semana)),
+    main   = "Gráfico de pastel (Densidad semanal de broca del café)",
+    cex = 1,
+    radius = 1.29)
+
+
+
+  #ggplot
+
+datos <- datos %>%
+  mutate(Semana     = as.factor(Semana),
+         Porcentaje = round(`No.broca/trampa` / sum(`No.broca/trampa`) * 100, 1)) %>%
+  arrange(desc(Semana)) %>%
+  mutate(ypos = cumsum(Porcentaje) - 0.5 * Porcentaje)
+
+# Gráfico con etiquetas afuera
+ggplot(datos, aes(x = "", y = Porcentaje, fill = Semana)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  geom_text(aes(y = ypos, label = paste0(Porcentaje, "%")),
+            size = 4, nudge_x = 0.7) +  # nudge_x empuja la etiqueta hacia afuera
+  labs(title = "Distribución de No.broca/trampa por semana",
+       fill = "Semana") +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+
+datos <- datos %>%
+  mutate(Semana     = as.factor(Semana),
+         Porcentaje = round(`No.broca/trampa` / sum(`No.broca/trampa`) * 100, 1)) %>%
+  arrange(desc(Semana)) %>%
+  mutate(ypos = cumsum(Porcentaje) - 0.5 * Porcentaje)
+
+# Crear gráfico tipo dona
+ggplot(datos, aes(x = 2, y = Porcentaje, fill = Semana)) +  # x = numérico (no factor)
+  geom_bar(stat = "identity", width = 1, color = "white") +  # Grosor del anillo
+  coord_polar(theta = "y") +                                 # Coordenadas polares
+  xlim(0.5, 2.5) +                                            # Espacio para hueco
+  geom_text(aes(y = ypos, label = paste0(Porcentaje, "%")),
+            size = 3.3, x = 2.2) +                              # Etiquetas fuera del anillo
+  labs(title = "Gráfico de pastel de densidad semanal de broca del café",
+       fill = "Semana") +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave("pastel_broca.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)  #solo f
+
+
+
