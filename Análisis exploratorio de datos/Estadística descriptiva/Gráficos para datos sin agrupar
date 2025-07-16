@@ -1,5 +1,7 @@
 #Gráficos:-------------------------------------------------------------
-  #Box plot para una variable------------------------------
+
+
+  #Box plot para una variable------------------------------------------------------------------------------
 li<- Q1-1.5*IQR
 ls<- Q3+1.5*IQR
 
@@ -65,3 +67,47 @@ ggplot(datos, aes(x = "", y = Precipitación)) +
     panel.grid.major.y = element_line(color = "gray", linetype = "dotted", size = 0.2)
   )
 ggsave("box plot.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)  #solo funciona con ggplot
+
+
+
+#box plot para varias variables--------------------------------------------------------------------------------------------
+str(datos)
+
+boxplot(list(Precipitación, `No.broca/trampa`), 
+        main = "box plot de variables",
+        ylab = "Medidas",
+        col = c("lightpink", "lightblue"),
+        names = c("Precipitación", "Densidad pobl"))
+ggsave("box plot3.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+
+
+  #ggplot
+str(datos)
+
+ggplot() +
+  geom_boxplot(data = datos, aes(x = "Temperatura", y = Temperatura), fill = "skyblue") +
+  geom_boxplot(data = datos, aes(x = "Densidad", y = `No.broca/trampa`), fill = "orange") +
+  geom_boxplot(data = datos, aes(x = "Precipitación", y = Precipitación), fill = "violet") +
+  
+  
+  stat_summary(data = datos, aes(x = "Temperatura", y = Temperatura),
+               fun = mean, geom = "point", shape = 23, size = 3, fill = "yellow") +
+  stat_summary(data = datos, aes(x = "Densidad", y = `No.broca/trampa`),
+               fun = mean, geom = "point", shape = 23, size = 3, fill = "yellow") +
+  stat_summary(data = datos, aes(x = "Precipitación", y = Precipitación),
+               fun = mean, geom = "point", shape = 23, size = 3, fill = "yellow") +
+  
+  
+  geom_segment(aes(x = 0.7, xend = 1.3, y = 22, yend = 22), color = "red", linetype = "dashed") +
+  geom_segment(aes(x = 0.7, xend = 1.3, y = 30, yend = 30), color = "red", linetype = "dashed") +
+  
+  geom_segment(aes(x = 1.7, xend = 2.3, y = 100, yend = 100), color = "blue", linetype = "dashed") +
+  geom_segment(aes(x = 1.7, xend = 2.3, y = 1500, yend = 1500), color = "blue", linetype = "dashed") +
+  
+  geom_segment(aes(x = 2.7, xend = 3.3, y = 50, yend = 50), color = "darkgreen", linetype = "dashed") +
+  geom_segment(aes(x = 2.7, xend = 3.3, y = 200, yend = 200), color = "darkgreen", linetype = "dashed") +
+  
+  labs(title = "Boxplots de Temperatura, densidad y Precipitación",
+       x = "Variable", y = "Valor") +
+  theme_minimal()
+ggsave("box plot4.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)  #solo funciona con ggplot
