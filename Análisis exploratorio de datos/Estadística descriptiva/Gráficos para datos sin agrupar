@@ -13,6 +13,17 @@ points(mean(Precipitación), col = "red", pch = 19)
 abline(h = li, col = "red", lwd = 2)
 abline(h = ls, col = "red", lwd = 2)
 
+#Identificar valores extremos
+
+which(datos$rendimiento %in% outliers) #Indica la fila en la que se encuentra el valor atípico según la columna analizada
+datos$outlier<- ifelse(datos$rendimiento < limite_inferior| datos$rendimiento>limite_superior, "si","no") #crea una columna para indicar qué datos son atípicos y cuáles no
+
+
+resultado_grubbs <- grubbs.test(Precipitación)
+print(resultado_grubbs)
+z_scores <- scale(Precipitación)  # Estandariza los datos
+outlier <- Precipitación[which.max(abs(z_scores))] 
+print(paste("El outlier más extremo es:", outlier))
 
 
 ggplot(datos, aes(x = "", y = Precipitación)) +
