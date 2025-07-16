@@ -1,0 +1,53 @@
+#Gráficos:-------------------------------------------------------------
+  #Box plot para una variable------------------------------
+li<- Q1-1.5*IQR
+ls<- Q3+1.5*IQR
+
+
+boxplot(Precipitación, width = 0.3, main = "Box plot de Precipitación", 
+        ylab = "Precipitación (mm)",
+        col = "lightgray",
+        border = "darkgray",
+        ylim= range(c(Precipitación, ls, li)))
+points(mean(Precipitación), col = "red", pch = 19)
+abline(h = li, col = "red", lwd = 2)
+abline(h = ls, col = "red", lwd = 2)
+
+
+
+ggplot(datos, aes(x = "", y = Precipitación)) +
+  geom_boxplot(
+    outlier.shape = T,  # Ocultar outliers
+    outlier.color = "darkgreen",
+    outlier.size = 3,
+    outlier.alpha = 1,
+    outlier.fill = "green",
+    fill = "lightpink",
+    color = "red",
+    size = 0.5,
+    alpha = 0.8  # Transparencia
+  ) +
+  # Resaltar la media
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    color = "red",
+    size = 3,
+    shape = 23,
+    fill = "black"
+  ) +
+  # Agregar límites superior e inferior
+  geom_hline(yintercept = li, color = "red", linetype = "dashed", size = 1) +
+  geom_hline(yintercept = ls, color = "red", linetype = "dashed", size = 1) +
+  # Etiquetas y título
+  labs(
+    title = "Box plot para Precipitación",
+    y = "Precipitación (mm)"
+  ) +
+  # Personalizar el tema
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 12),
+    panel.grid.major.y = element_line(color = "gray", linetype = "dotted", size = 0.2)
+  )
