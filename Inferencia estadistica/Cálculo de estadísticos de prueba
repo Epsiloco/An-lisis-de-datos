@@ -1,0 +1,28 @@
+#CALCULO DE ESTADISTICOS DE PRUEBA CRITICOS
+#Z
+alpha<- 0.05
+B<- 1-a
+zc1<- qnorm(1-alpha/2, mean = 0) #ls
+zc2<- qnorm(alpha/2, mean = 0) #li
+
+#T-student
+alpha<- 0.05
+B<- 1-alpha
+gl<- 15
+t_student1<- qt(1-alpha/2, df = gl) #ls
+t_student2<- qt(alpha/2, df=gl) #li
+
+#Chi-cuadrado
+alpha<- 0.05
+B<- 1-alpha
+gl<- 15
+X1<- qchisq(alpha/2, df=15) #limite inferior
+X2<- qchisq(1-alpha/2, df=15) #limite superior
+
+#F-Fisher snedecor
+alpha<- 0.05
+B<- 1-alpha
+gl1<- 10
+gl2<- 5
+F_fisher1<- qf(1-alpha/2, df1 = gl1, df2 = gl2) #ls
+F_fisher2<- qf(alpha/2, df1 = gl1, df2 = gl2) #li
