@@ -14,3 +14,21 @@ plot(ca, ce, col="blue", pch=12, main="Gráfico de dispersión", xlab="CE", ylab
 modelo<-lm(ce ~ ca, data=salinidad)
 summary(modelo)
 abline(modelo, col="red", lwd=2)
+
+#Otra forma:-------------------------------------------------------------------------------------------------------
+datos<- read_excel("salinidad.xlsx", sheet = 1)
+attach(datos)
+view(datos)
+head(datos)
+colnames(datos)
+
+par(mfrow = c(1,2), cex.main=1) #Sirve para ver ambos gráficos en un mismo plano (1 fila, 2 columnas)
+
+plot(CE,`Ca2+`, xlab="Concentracion de Ca", ylab="CE", main = "diagrama de dispersion", col= "red")
+plot(`Ca2+`, CE, xlab = "CE", ylab = "Concentración de calcio", main = "diagrama de dispersion", col = "blue")
+
+correlacion<- cor.test(CE, `Ca2+`, method = "pearson", alternative = "two.sided", conf.level = 0.95 )
+print(correlacion)
+
+correlacion2<- cor(CE, `Ca2+`, method = "pearson")
+print(correlacion2)
