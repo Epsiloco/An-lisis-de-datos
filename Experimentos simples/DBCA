@@ -65,3 +65,47 @@ duncan.test(resaov, "TRB",console=TRUE) #Duncan
 LSD.test(resaov, "TRB", p.adj= "bon",console=TRUE) #Bonferroni
 sk <- SK(resaov, which= "TRB",  dispersion="se", sig.level=0.05) #SkottKnott
 summary(sk)
+
+#-----------------------------------------------------------------------------------------------------------------------------------------
+
+datos<- read_excel("DBA_frijol.xlsx", sheet = 1)
+head(datos)
+colnames(datos)
+attach(datos)
+
+x<- as.factor(Variedades)
+bloq<- as.factor(Bloque)
+y1<- as.vector(Rend)
+y<- as.numeric(y1)
+
+plot(y~x, col="cyan", las=1)
+
+par(mfrow=c(1,1))
+boxplot(y~x, col="red")
+boxplot(split(y,x), xlab="var", ylab="Rend")
+
+andeva<- lm(y~x+bloq)
+anova(andeva)
+cv.model(andeva)
+
+qqPlot(andeva$residuals)
+sw<- shapiro.test(andeva$residuals)
+print(sw)
+
+plot(andeva$fitted.values, andeva$residuals, col="red", pch=1, pty=3, abline(h=0, col="red", lwd=3))
+leveneTest(y~x, center="mean")
+bartlett.test(y~x)
+
+sk<- SK(andeva, which = "x", sig.level = 0.05, dispersion="se")
+summary(sk)
+
+
+
+par(mfrow=c(2,2))
+plot(andeva)
+check_normality(andeva)
+win.graph(11,11)
+check_model(andeva)
+
+detach(datos)
+rm(list=ls())
