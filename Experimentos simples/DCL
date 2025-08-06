@@ -67,3 +67,40 @@ duncan.test(DCL.aov, "TRC",console=TRUE)
 LSD.test(DCL.aov, "TRC", p.adj= "bon",console=TRUE)
 sk <- SK(DCL.aov, which= "TRC",  dispersion="se", sig.level=0.05)
 summary(sk)
+
+#-----------------------------------------------------------------------------------------------------------------------------
+datos<- read_excel("Ejercicios_DCL_2023.xlsx", sheet=6)
+print(head(datos))
+colnames(datos)
+attach(datos)
+
+x<- as.factor(Marca)
+f<- as.factor(Posición)
+c<- as.factor(Automóvil)
+y<- as.vector(Desgaste)
+y1<- as.numeric(y)
+
+par(mfrow=c(1,1))
+boxplot(split(y1,x), col="lightgray", las=1, par(mar=c(4,5,2,2)), xlab="Marca", ylab="desgaste")
+boxplot(y1~x, col="lightblue", las=1, par(mar=c(4,5,2,2)), xlab="marca", ylab="desgaste")
+
+andeva<- lm(y1~x+f+c)
+anova(andeva)
+
+qqPlot(andeva$residuals)
+sw<- shapiro.test(andeva$residuals)
+print(sw)
+
+plot(andeva$fitted.values, andeva$residuals, col="red", 
+     pch=18, xlab="pred", ylab="res", cex=1.5, abline(h=0, col="red", lwd=2))
+leveneTest(y1~x, center="mean")
+bartlett.test(y1~x)
+
+par(mfrow=c(2,2))
+plot(andeva)
+check_normality(andeva)
+win.graph(11,11)
+check_model(andeva)
+
+sk<- SK(andeva, which="x", sig.level = 0.05, dispersion="se")
+summary(sk)
