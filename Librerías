@@ -40,7 +40,7 @@ library(scales)
 #---------------------------------------------------------------------------------
 # Lista de paquetes requeridos
 paquetes <- c(
-  "openxlsx", "fBasics", "psych", "modeest", "tribble", "ggrepel", "GGally", 
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
   "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
   "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
   "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
