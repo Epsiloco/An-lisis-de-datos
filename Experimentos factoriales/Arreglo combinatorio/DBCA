@@ -1,1 +1,62 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales"
+)
 
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])]
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#----------------------------------------------------------------------------------------------------
+
+datos<- read_excel("Factorial combinatorio.xlsx", sheet=3)
+view(datos)
+colnames(datos)
+attach(datos)
+
+FA<- as.factor(N)
+FB<- as.factor(P)
+bloq<- as.factor(Bloque)
+y<- as.vector(Rendimiento)
+y1<- as.numeric(Rendimiento)
+
+par(mar=c(3,3,2,3))
+interaction.plot(FA, FB, y1, col= c("red", "blue", "black"), 
+                 xlab = "N", ylab="rend", fixed = T, lwd=1.6, lty = 10)
+
+andeva<- aov(y1~bloq+FA+FB+FA:FB)
+anova(andeva)
+cv.model(andeva)
+
+qqPlot(andeva$residuals, col="black", pch = 1, cex = 1)
+sw<- shapiro.test(andeva$residuals)
+print(sw)
+
+par(mar=c(6,6,2,4))
+plot(andeva$fitted.values, andeva$residuals, col="red", pch=16, cex=1,
+     xlab="pred", ylab="res", abline(h=0, col="blue", lwd=3, lty=3))
+
+leveneTest(y1, FA:FB, center = "mean")
+leveneTest(y1~interaction(FA,FB), center="mean")
+bartlett.test(y1~interaction(FA,FB))
+
+#PMM para FA
+sk1<- SK(andeva, which = "FA", dispersion="se", sig.level = 0.05)
+summary(sk1) #hay diferencias significativas
+#PMM para FB
+sk2<- SK(andeva, which = "FB", dispersion = "se", sig.level = 0.05)
+summary(sk2) #todas las medias son iguales, por eso la misma letra
+
+#PMM para interacción: colocar en la función tal como aparece en el objeto andeva (which="FA:FB") en este caso 
