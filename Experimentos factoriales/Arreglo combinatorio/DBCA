@@ -52,6 +52,13 @@ leveneTest(y1, FA:FB, center = "mean")
 leveneTest(y1~interaction(FA,FB), center="mean")
 bartlett.test(y1~interaction(FA,FB))
 
+par(mfrow=c(2,2))
+plot(andeva)
+check_normality(andeva)
+win.graph(11,11)
+check_model(andeva)
+
+
 #PMM para FA
 sk1<- SK(andeva, which = "FA", dispersion="se", sig.level = 0.05)
 summary(sk1) #hay diferencias significativas
