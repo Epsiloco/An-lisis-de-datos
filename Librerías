@@ -44,7 +44,7 @@ paquetes <- c(
   "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
   "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
   "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
-  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales"
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest"
 )
 
 # Verifica cuáles no están instalados
@@ -59,3 +59,4 @@ if(length(no_instalados)) {
 
 # Carga todos los paquetes (opcional)
 lapply(paquetes, library, character.only = TRUE)
+#----------------------------------------------------------------------------------------------------
