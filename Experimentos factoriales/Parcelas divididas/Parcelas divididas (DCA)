@@ -40,3 +40,80 @@ plot(resp1,1)
 plot(resp1,2)
 #Prueba de Shapiro Wilks
 shapiro.test(resp1$residuals)
+
+#-------------------------------------------------------------------------------------------------------------------------------------------
+datos<- read_excel("soya_PD.xlsx", sheet=1)
+attach(datos)
+colnames(datos)
+datos$trat<- 1:96
+datos<- datos %>% relocate(trat, .before = "E_Surcos")
+
+FA<- as.factor(D_sem)
+FB<- as.factor(E_Surcos)
+rep<- as.factor(Bloque)
+VR<- as.vector(Rend)
+y<- as.numeric(VR)
+
+par(mar=c(5,4,3,9))
+interaction.plot(FA,FB,y, fixed = F, col=c("red", "blue", "black", "orange", "lightblue", "brown"), 
+                 lwd=1.4, lty=1, trace.label = "E_surcos",
+                 xlab="D_sem", ylab="Rend", cex=1)
+
+#ANDEVA
+  # Yijk = u + Ti + (p)j(i) + ak + (Ta)ik + Eijk
+andeva<- aov(y~FA+FB+Error(rep/FA)+FA:FB) #Error() no funciona en lm() pq solo acepta modelos lineales con 1 error
+summary(andeva) #ya no usa anova q solo acepta 1 error
+model.tables(andeva, type = "means") #tabla de medias para cada tratamiento e interacción
+
+#Verificación de supuestos
+  #crear un modelo con un único error, ya que las pruebas de supuestos solo aceptan uno.
+modelo<- aov(y~FA+FB+FA*FB+rep/FA) #se quita Error() y se deja solo como rep/FA para dejar un solo error (el residual)
+modelo<- aov(y~FA*FB+rep/FA) #otra forma
+summary(modelo)
+
+sw<- shapiro.test(modelo$residuals)
+print(sw)
+qqPlot(modelo$residuals)
+plot(modelo, 2) #otra forma de qqplot
+
+plot(modelo$fitted.values, modelo$residuals, col="red", cex=1, pch=16, 
+     abline(h=0, col="red", lwd=2))
+plot(modelo, 1) #otra forma de hacerlo
+plot(modelo, 3) #grafico de predichos vs residuos estandarizados
+
+  #Para verificar los supuestos de una vez:
+par(mfrow=c(2,2), mar=c(2,3,4,5))
+plot(modelo)
+check_normality(modelo)
+win.graph(11,11)
+check_model(modelo)
+
+leveneTest(modelo$residuals, FA, center = "mean") #para FA
+leveneTest(modelo$residuals~FA, center = "mean")
+bartlett.test(modelo$residuals, FB) #para FB
+bartlett.test(modelo$residuals, FA:FB)
+
+#PMM:se hace con el ANDEVA original
+sk1<- SK(andeva, which = "FA", dispersion="se", sig.level = 0.05) #para FA
+summary(sk1)
+sk2<- SK(andeva, which = "FB", dispersion="se", sig.level = 0.05) #para FB
+summary(sk2)
+
+  #Prueba de Scott Knott para la interacción:
+colnames(datos)
+datos$FA_FB<- interaction(datos$D_sem, datos$E_Surcos, sep = "_") #unir ambos factores como FA*FB en la tabla
+attach(datos)
+sk3<- SK(andeva, which = "FA_FB", dispersion="se", sig.level = 0.05)
+summary(sk3)
+
+Tukey1<- HSD.test(y, FA, DFerror =12, MSerror = 3.21)  #colocar los valors de forma manual
+print(Tukey1) 
+Tukey2<- HSD.test(y, FB, DFerror = 60, MSerror = 4.55) 
+print(Tukey2)
+Tukey3<- HSD.test(y, FA:FB, DFerror = 60, MSerror = 4.55) #Ambas formas son validas 
+Tukey3<- HSD.test(y, FA_FB, DFerror = 60, MSerror = 4.55) 
+print(Tukey3)
+
+
+
+
