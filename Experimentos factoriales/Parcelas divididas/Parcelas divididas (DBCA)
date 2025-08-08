@@ -55,3 +55,89 @@
   #Prueba de Shapiro Wilks
     res<-residuals(mod2)
     shapiro.test(res)
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+datos<- read_excel("DBCA_PD.xlsx", sheet=1)
+attach(datos)
+print(head(datos))
+datos$trat<- 1:32
+datos<- datos %>% relocate(trat, .before = "densidad")
+colnames(datos)
+
+FA<- as.factor(densidad)
+FB<- as.factor(hibrido)
+bloq<- as.factor(rep)
+VR<- as.vector(frutosfrescos)
+y<- as.numeric(VR)
+
+datos2<- data.frame(FA, FB, bloq, y) #nueva tabla de datos para hacer ANDEVA con splitplot()
+attach(datos2)
+datos2$Trat<- 1:32
+datos2<- datos2 %>% relocate(Trat, .before = "FA")
+
+
+par(mar=c(3,4,2,11))
+interaction.plot(FA,FB,y, col=c("red","black","blue","green"), lwd=1.4, cex=0.7, 
+                 trace.label = "Híbrido", xlab = "Densidad", ylab = "Frutos frescos")
+
+#ANDEVA: la diferencia con el DCA es que se incorpora el efecto bloque
+  #Yijk= u+ Ti + Bj + pk + (TB)ij + (Tp)ik + Eijk
+
+andeva<- aov(y~FA+FB+bloq+Error(bloq/FA)+FA*FB)
+summary(andeva)
+andeva2<- aov(y~FA+FB+bloq+Error(bloq*FA)+FA:FB) #es igual al primer modelo
+summary(andeva)
+
+andeva3<- splitplot(data=datos2[5],
+                    main.plot = FA,
+                    sub.plot = FB,
+                    block = bloq,
+                    mean.comparison.test = 1)
+print(andeva3)
+
+#Verificar los supuestos: hacer un ANDEVA para un solo error
+colnames(datos)
+modelo<- aov(y~FA+FB+FA:FB+rep/FA) #también se puede colocar como rep*FA o rep:FA
+summary(modelo)
+modelo<- aov(y~FA*FB+rep+rep:FA)
+summary(modelo)
+
+#Normalidad
+sw<- shapiro.test(modelo$residuals)
+print(sw)
+qqPlot(modelo$residuals, col = "blue", cex = 1.3, pch = 16)
+plot(modelo, 2, col="black", cex=1.3, pch=16) #igual que QQplot
+
+#Homocedasticidad
+leveneTest(modelo$residuals, FA, center = "mean")
+leveneTest(modelo$residuals, FB, center = "mean")
+leveneTest(modelo$residuals, interaction(FA,FB), center = "mean")
+bartlett.test(modelo$residuals, FA)
+bartlett.test(modelo$residuals, FB)
+bartlett.test(modelo$residuals, interaction(FA, FB))
+
+plot(modelo$fitted.values, modelo$residuals, col="blue", pch=16, cex=1.3, 
+     xlab="predichos", ylab="residuos", abline(h=0, col="red", lwd=2))
+
+plot(modelo, 1, col="red", pch=16)
+
+#Independencia
+dwtest(modelo) 
+
+#PMM:
+sk1<- SK(andeva, which = "FA", sig.level = 0.05, dispersion = "se")
+summary(sk1)
+sk2<- SK(andeva, which = "FB", sig.level = 0.05, dispersion = "se")
+summary(sk2)
+
+datos2$FA_FB<- interaction(FA, FB, sep = "_") 
+attach(datos2)
+sk3<- SK(andeva, which = "FA_FB", sig.level = 0.05, dispersion="se")
+summary(sk3)
+
+tukey1<- HSD.test(y, FA, DFerror = 3, MSerror = 93)
+print(tukey1)
+tukey2<- HSD.test(y, FB, DFerror = 18, MSerror = 146.28)
+print(tukey2)
+tukey3<- HSD.test(y, FA:FB, DFerror = 18, MSerror = 146.28)
+print(tukey3)
