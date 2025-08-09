@@ -79,6 +79,10 @@ abline(boxcox(m0),v=0.2)
 bc<-boxcox(m0)
 (lambda <- bc$x[which.max(bc$y)])
 
+summary(powerTransform(pul1)) #Para obtener lambda y la prueba de hipotesis para ver si es necesario o no transformar
+
+
+
 #ANDEVA con la variable transformada---------------------------------------------------------------
   #realmente, y^(lambda) es llamada transformación de Tukey
 m2 <- aov (pul1^0.2 ~ TRt, data = DICt)
