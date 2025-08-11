@@ -1,0 +1,98 @@
+#Pegar los codigos de la librería 
+  
+datos<- read_excel("trigo_Psub_DCA (1).xlsx", sheet = 1)
+print(head(datos))
+attach(datos)
+colnames(datos)
+
+FA<- as.factor(Fecha)
+FB<- as.factor(Var)
+FC<- as.factor(Den)
+bloq<- as.factor(Rep)
+vr<- as.vector(Rend)
+y<- as.numeric(vr)
+
+interaction.plot(FA,FB,y, col= c("red","blue"), lty=1, lwd=2, 
+                 trace.label = "Var", xlab="Fecha", ylab="Rend",
+                 cex=0.4, main="Gráfico de interacción")
+
+interaction.plot(FA,FC,y, col= c("red","black"), lty=1, lwd=2, 
+                 trace.label = "Var", xlab="Fecha", ylab="Rend",
+                 cex=0.4, main="Gráfico de interacción")
+
+
+with(datos, xyplot(y ~ FA | FB, groups = FC, pch = 21, cex=1.2))
+with(datos, xyplot(y ~ FA | FB, groups = FC, type="a", lwd=2, col=c("blue", "red"))) #en type se puede poner "o"
+
+#ANDEVA
+  # Yijkl = u + Ti + pj + Bk + (D)l(i) + (S)lj(i) + (Tp)ij + (TB)ik + (pB)jk + Eijkl
+
+andeva<- aov(y~FA+FB+FC+FA:FB+FA:FC+FB:FC+FA:FB:FC+Error(bloq/FA/FB))
+summary(andeva)
+andeva1<- aov(y~FA*FB*FC+Error(bloq/FA/FB)) #ambas formas son equivalentes
+summary(andeva1)
+
+#Verificación de los supuestos: obtener ANDEVA con 1 error
+andeva2<- aov(y~FA*FB*FC+bloq/FA/FB)
+summary(andeva2)
+
+#Normalidad:
+sw<- shapiro.test(andeva2$residuals)
+print(sw)
+check_normality(andeva2)
+plot(andeva2,2)
+qqPlot(andeva2$residuals, col = "red", pch=16, cex = 1.2)
+
+#Homocedasticidad:
+leveneTest(andeva2$residuals, FA, center = "mean")
+leveneTest(andeva2$residuals, FB, center = "mean")
+leveneTest(andeva2$residuals, FC, center = "mean")
+leveneTest(andeva2$residuals, FA:FB, center = "mean")
+leveneTest(andeva2$residuals, FA:FC, center = "mean")
+leveneTest(andeva2$residuals, FB:FC, center = "mean")
+leveneTest(andeva2$residuals, FA:FB:FC, center = "mean")
+
+bartlett.test(andeva2$residuals~FA)
+bartlett.test(andeva2$residuals~FB)
+bartlett.test(andeva2$residuals~interaction(FA,FB))
+bartlett.test(andeva2$residuals~interaction(FA,FC))
+bartlett.test(andeva2$residuals~interaction(FB,FC))              
+bartlett.test(andeva2$residuals~interaction(FA,FB,FC))
+
+check_heteroscedasticity(andeva2)
+
+#Independencia
+dwtest(andeva2)
+
+#PMM:
+sk<- SK(andeva, which="FA", sig.level = 0.05, dispersion="se")
+summary(sk)
+sk2<- SK(andeva, which="FB", sig.level = 0.05, dispersion="se")
+summary(sk2)
+sk3<- SK(andeva, which="FC", sig.level = 0.05, dispersion="se")
+summary(sk3)
+
+attach(datos)
+datos$FA_FB<- interaction(FA,FB,sep="_")
+sk4<- SK(andeva, which="FA_FB", sig.level = 0.05, dispersion="se")
+summary(sk4)
+
+datos$FA_FC<- interaction(FA,FC,sep="_")
+sk5<- SK(andeva, which="FA_FC", sig.level = 0.05, dispersion="se")
+summary(sk5)
+
+datos$FB_FC<- interaction(FB,FC,sep="_")
+sk6<- SK(andeva, which="FB_FC", sig.level = 0.05, dispersion="se")
+summary(sk6)
+
+datos$FA_FB_FC<- interaction(FA,FB,FC,sep="_")
+sk7<- SK(andeva, which="FA_FB", sig.level = 0.05, dispersion="se")
+summary(sk7)
+
+tukey<- HSD.test(y, FA, DFerror = 6, MSerror = 0.56, console = T)
+tukey<- HSD.test(y, FB, DFerror = 6, MSerror = 0.018, console = T)
+tukey<- HSD.test(y, FC, DFerror = 12, MSerror = 0.06, console = T)
+tukey<- HSD.test(y, FA:FB, DFerror = 6, MSerror = 0.018, console = T)
+tukey<- HSD.test(y, FA:FC, DFerror = 12, MSerror = 0.06, console = T)
+tukey<- HSD.test(y, FB:FC, DFerror = 12, MSerror = 0.06, console = T)
+tukey<- HSD.test(y, FA:FB:FC, DFerror = 12, MSerror = 0.06, console = T)
