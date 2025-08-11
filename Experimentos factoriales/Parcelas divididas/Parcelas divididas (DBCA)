@@ -144,3 +144,8 @@ tukey2<- HSD.test(y, FB, DFerror = 18, MSerror = 146.28)
 print(tukey2)
 tukey3<- HSD.test(y, FA:FB, DFerror = 18, MSerror = 146.28)
 print(tukey3)
+
+#Para eliminar todo lo trabajado:
+cat("\014") #en vez del ctrl+L
+graphics.off() #limpia el panel grafico
+rm(list=ls()) #limpia la consola
