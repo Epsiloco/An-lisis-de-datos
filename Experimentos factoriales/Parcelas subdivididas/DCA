@@ -96,3 +96,7 @@ tukey<- HSD.test(y, FA:FB, DFerror = 6, MSerror = 0.018, console = T)
 tukey<- HSD.test(y, FA:FC, DFerror = 12, MSerror = 0.06, console = T)
 tukey<- HSD.test(y, FB:FC, DFerror = 12, MSerror = 0.06, console = T)
 tukey<- HSD.test(y, FA:FB:FC, DFerror = 12, MSerror = 0.06, console = T)
+
+graphics.off()
+cat("\014")
+rm(list=ls())
