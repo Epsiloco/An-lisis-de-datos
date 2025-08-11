@@ -93,6 +93,8 @@ leveneTest(modelo$residuals~FA, center = "mean")
 bartlett.test(modelo$residuals, FB) #para FB
 bartlett.test(modelo$residuals, FA:FB)
 
+check_heteroscedasticity(modelo) #otra forma de verificar
+
 #PMM:se hace con el ANDEVA original
 sk1<- SK(andeva, which = "FA", dispersion="se", sig.level = 0.05) #para FA
 summary(sk1)
