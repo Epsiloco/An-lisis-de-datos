@@ -56,3 +56,82 @@ sk2<- SK(mod1,
          which="Densidades",
          sig.level = 0.05)
 summary(sk2)
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+#Otra forma:
+
+datos<- read_excel("DCL_PD.xlsx", sheet = 1)
+attach(datos)
+print(head(datos))
+
+FA<- as.factor(Variedad)
+FB<- as.factor(Densidades)
+fila<- as.factor(Fila)
+col<- as.factor(Columna)
+vr<- as.vector(Rend)
+y<- as.numeric(vr)
+
+par(mar=c(5,4,3,9))
+interaction.plot(FA, FB, y, cex=0.2, col=c("red","blue","black"), lty = 1, lwd=2, 
+                 trace.label="Dens", xlab="Var", ylab = "Rend")
+
+with(datos, xyplot(y ~ FA | FB))
+with(datos, xyplot(y ~ FA | FB, groups = fila))
+with(datos, xyplot(y ~ FA | FB, groups = fila, aspect = "xy"))
+with(datos, xyplot(y ~ FA | FB, groups = fila, aspect = "xy", type ="o"))
+with(datos, xyplot(y ~ FA | FB, groups = fila, aspect = "xy", type ="a"))
+
+#ANDEVA:#ANDEVA:fila
+  # Yijkl = u + Ti + Fj + Ck + pl + (FCT)ijk + (Tp)il + Eijkl
+
+parcela_principal<- with(datos, interaction(fila,col))
+andeva<- aov(y~FA+FB+FA:FB+fila+col+Error(parcela_principal))
+summary(andeva)
+
+andeva1 <- aov(y ~ FA + FB + FA:FB + fila + col + Error(interaction(fila,col))) #Ambas soluciones dan lo mismo
+summary(andeva1)
+
+#Verificación de supuestos: andeva con 1 error
+#Normalidad
+andeva2<- aov(y~FA*FB+fila+col+interaction(fila, col))
+summary(andeva2)
+sw<- shapiro.test(andeva2$residuals)
+print(sw)
+check_normality(andeva2)
+qqPlot(andeva2$residuals, col="red", pch=16)
+plot(andeva2, 2)
+
+#Homocedasticidad
+leveneTest(andeva2$residuals~FA, center="mean")
+leveneTest(andeva2$residuals~FB, center="mean")
+leveneTest(andeva2$residuals~interaction(FA,FB), center="mean")
+
+bartlett.test(andeva2$residuals~FA)
+bartlett.test(andeva2$residuals~FB)
+bartlett.test(andeva2$residuals~interaction(FA,FB))
+
+#Independencia
+dwtest(andeva2)
+
+#PMM
+sk<- SK(andeva, which = "FA", sig.level = 0.05, dispersion="se")
+summary(sk)
+sk2<- SK(andeva, which = "FB", sig.level = 0.05, dispersion="se")
+summary(sk2)
+
+datos$FA_FB<- interaction(FA,FB,sep = "_")
+attach(datos)
+sk3<- SK(andeva, which = "FA_FB", sig.level = 0.05, dispersion="se")
+summary(sk3)
+tukey<- HSD.test(y, FA, DFerror = 2, MSerror = 0.0144)
+print(tukey)
+
+tukey2<- HSD.test(y, FB, DFerror = 2, MSerror = 0.0144)
+print(tukey2)
+
+tukey3<- HSD.test(y, FA_FB, DFerror = 2, MSerror = 0.0144)
+print(tukey3)
+
+#Limpiar consola, gráficos y ambiente de trabajo
+cat("\014")
+rm(list = ls())
+graphics.off()
