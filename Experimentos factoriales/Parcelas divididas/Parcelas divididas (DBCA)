@@ -121,6 +121,9 @@ plot(modelo$fitted.values, modelo$residuals, col="blue", pch=16, cex=1.3,
 
 plot(modelo, 1, col="red", pch=16)
 
+check_heteroscedasticity(modelo) #otra forma de verificar
+
+
 #Independencia
 dwtest(modelo) 
 
