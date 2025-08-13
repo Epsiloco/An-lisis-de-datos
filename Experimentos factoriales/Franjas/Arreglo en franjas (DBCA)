@@ -58,3 +58,115 @@ shapiro.test(modelo$residuals)
 FactorA<-HSD.test(resp1,nitr,ANDEVA$gl.a,ANDEVA$Ea);FactorA
 FactorB<-HSD.test(resp1,riego,ANDEVA$gl.b,ANDEVA$Eb);FactorB
 FactorAB<-HSD.test(resp1,riego:nitr,ANDEVA$gl.c,ANDEVA$Ec);FactorAB
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Pegar las liberías
+
+datos<- read_excel("StripPlot.xlsx", sheet = 1)
+attach(datos)
+print(head(datos))
+
+FA<- as.factor(Nitrogeno)
+FB<- as.factor(Riego)
+bloq<- as.factor(Bloque)
+vr<- as.vector(Rendimiento)
+y<- as.numeric(vr)
+datos2<- data.frame(FA,FB,bloq,y)
+attach(datos2)
+
+par(mar=c(4,4,3,9), cex=0.8)
+interaction.plot(FA,FB,y, col= c("red", "blue"), lwd=2, 
+                 xlab="N", ylab="Rend", trace.label = "Riego")
+
+with(datos, xyplot(y~FA | FB, groups = bloq, pch = 21, cex=1.2))
+with(datos, xyplot(y~FA | FB, type="a", groups = FB, lwd=2, col=c("red", "blue")))
+
+
+
+
+
+# Calcular medias y error estándar (o desviación estándar)
+
+medias <- datos2 %>%      
+  group_by(FA) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(values = c("#D9D9D9", "#FF9999", "lightblue")) 
+
+
+#ANDEVA
+  # Yijk = u + Ti + Bj + pk + (TB)ij + (Tp)ik + (Tp)ik + Eijk
+
+andeva<- strip.plot(bloq, FA, FB, y) #con la fx strip.plot(), introducirlo en ese orden
+andeva1<- aov(y~FA+FB+FA:FB+bloq+Error(bloq/(FA+FB)))
+summary(andeva1)
+
+
+#Verificación de los supuestos: ANDEVA con un error
+andeva2<- aov(y~FA*FB+bloq+bloq/(FA+FB))
+summary(andeva2)
+sw<- shapiro.test(andeva2$residuals)
+print(sw)
+check_normality(andeva2)
+qqPlot(andeva2$residuals, col="red", pch=16)
+plot(andeva2,2)
+
+#Homocedasticidad
+leveneTest(andeva2$residuals, FA, center="mean")
+leveneTest(andeva2$residuals, FB, center="mean")
+leveneTest(andeva2$residuals, FA:FB, center="mean")
+
+bartlett.test(andeva2$residuals, FA)
+bartlett.test(andeva2$residuals, FB)
+bartlett.test(andeva2$residuals, FA:FB)
+
+check_heteroscedasticity(andeva2)
+plot(andeva2$fitted.values, andeva2$residuals, col="blue", pch=16,
+     abline(h=0, col="red", lwd=3, lty=3))
+
+plot(andeva2,1)
+
+par(mar=c(2,4,5,6))
+plot(andeva2)
+check_model(andeva2)
+win.graph(11,11)
+check_normality(andeva2) #dar click varias veces en la ventana gráfica para que aparezcan todos los graficos
+
+#Independencia
+dwtest(andeva2)
+
+
+#PMM:
+sk<- SK(andeva1, which="FA", sig.level = 0.05, dispersion="se")
+summary(sk)
+sk2<- SK(andeva1, which="FB", sig.level = 0.05, dispersion="se")
+summary(sk2)
+datos2$FA_FB<- interaction(FA,FB, sep="_")
+attach(datos2)
+
+sk3<- SK(andeva1, which="FA_FB", sig.level = 0.05, dispersion="se")
+summary(sk3)
+
+
+tukey<- HSD.test(y, FA, DFerror = 6, MSerror = 2.82, console = T)
+print(tukey)
+tukey1<- HSD.test(y, FB, DFerror = 3, MSerror = 10.9, console = T)
+print(tukey1)
+tukey2<- HSD.test(y, FA:FB, DFerror = 6, MSerror = 1.43, console = T)
+print(tukey2)
+
+
+graphics.off()
+cat("\014")
+rm(list=ls())
+
+
