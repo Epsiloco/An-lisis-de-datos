@@ -1,1 +1,140 @@
+# Pegar los paquetes
+
+datos<- read_excel("Datos_Strip_Split_Plot.xlsx", sheet = 1)
+attach(datos)
+print(head(datos))
+round(basicStats(Rend, ci=T),2)
+colnames(datos)
+
+FA<- as.factor(Var)
+FB<- as.factor(N)
+FC<- as.factor(Plant)
+bloq<- as.factor(Bloque)
+vr<- as.vector(Rend)
+y<- as.numeric(vr)
+
+niveles_FA<- nlevels(FA); print(niveles_FA)
+niveles_FB<- nlevels(FB); print(niveles_FB)
+niveles_FC<- nlevels(FC); print(niveles_FC)
+n_bloques<- nlevels(bloq); print(n_bloques)
+
+datos2<- data.frame(FA,FB,FC,bloq,y)
+attach(datos2)
+
+par(mar=c(4,4,3,9), cex=1)
+interaction.plot(FA,FB,y, col= c("red", "blue", "black"), lwd=2, 
+                 xlab="Var", ylab="Rend", trace.label = "N")
+
+interaction.plot(FA,FC,y, col= c("red", "blue"), lwd=2, 
+                 xlab="Var", ylab="Rend", trace.label = "Plant")
+
+interaction.plot(FB,FC,y, col= c("red", "blue"), lwd=2, 
+                 xlab="N", ylab="Rend", trace.label = "Plant")
+
+
+with(datos, xyplot(y~FA | FB, groups = FC, pch = 21, cex=1))
+with(datos, xyplot(y~FA | FB, type="a", groups = FC, lwd=2, col=c("red", "blue")))
+
+
+# Calcular medias y error estándar (o desviación estándar)
+
+medias <- datos2 %>%      
+  group_by(FA) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(values = c("#D9D9D9", "#FF9999", "lightblue", "lightgreen", "black","red")) 
+
+
+#ANDEVA
+  # Yijkl = u + Ti + Bj + pk + Dl + (TB)ij + (pB)jk + (Tp)ik + (TD)il + (pD)kl + (TpD)ikl + Eijkl
+
+
+andeva <- aov(y ~ FA * FB * FC + Error(bloq / (FA * FB)))
+summary(andeva)
+
+
+
+#Verificación de los supuestos: ANDEVA con un error
+andeva2<- aov(y~bloq+FA*FB*FC+bloq/(FA*FB))
+summary(andeva2)
+sw<- shapiro.test(andeva2$residuals)
+print(sw)
+check_normality(andeva2)
+qqPlot(andeva2$residuals, col="red", pch=16, cex=2)
+plot(andeva2,2)
+
+#Homocedasticidad
+leveneTest(andeva2$residuals, FA, center="mean")
+leveneTest(andeva2$residuals, FB, center="mean")
+leveneTest(andeva2$residuals, FA:FB, center="mean")
+
+bartlett.test(andeva2$residuals, FA)
+bartlett.test(andeva2$residuals, FB)
+bartlett.test(andeva2$residuals, FC)
+bartlett.test(andeva2$residuals, FA:FB)
+bartlett.test(andeva2$residuals, FA:FC)
+bartlett.test(andeva2$residuals, FB:FC)
+bartlett.test(andeva2$residuals, FA:FB:FC)
+
+check_heteroscedasticity(andeva2)
+plot(andeva2$fitted.values, andeva2$residuals, col="blue", pch=16, cex=2,
+     abline(h=0, col="red", lwd=3, lty=3))
+
+plot(andeva2,1)
+
+par(mar=c(2,4,5,6))
+plot(andeva2)
+check_model(andeva2)
+win.graph(11,11)
+check_normality(andeva2) #dar click varias veces en la ventana gráfica para que aparezcan todos los graficos
+
+#Independencia
+dwtest(andeva2)
+
+
+#PMM:
+sk<- SK(andeva, which="FA", sig.level = 0.05, dispersion="se")
+summary(sk)
+sk2<- SK(andeva, which="FB", sig.level = 0.05, dispersion="se")
+summary(sk2)
+sk3<- SK(andeva, which="FC", sig.level = 0.05, dispersion="se")
+summary(sk3)
+
+datos2$FA_FB<- interaction(FA,FB, sep="_")
+datos2$FA_FC<- interaction(FA,FC, sep="_")
+datos2$FB_FC<- interaction(FB, FC, sep="_")
+datos2$FA_FB_FC<- interaction(FA,FB,FC, sep="_")
+attach(datos2)
+
+sk4<- SK(andeva, which="FA_FB", sig.level = 0.05, dispersion="se")
+summary(sk4)
+sk5<- SK(andeva, which="FA_FC", sig.level = 0.05, dispersion="se")
+summary(sk5)
+sk6<- SK(andeva, which="FB_FC", sig.level = 0.05, dispersion="se")
+summary(sk6)
+sk7<- SK(andeva, which="FA_FB_FC", sig.level = 0.05, dispersion="se")
+summary(sk7)
+
+
+tukey<- HSD.test(y, FA, DFerror = 6, MSerror = 2.82, console = T)  #Modificar manualmente los gle y CMerror
+print(tukey)
+tukey1<- HSD.test(y, FB, DFerror = 3, MSerror = 10.9, console = T)
+print(tukey1)
+tukey2<- HSD.test(y, FA:FB, DFerror = 6, MSerror = 1.43, console = T)
+print(tukey2)
+
+
+graphics.off()
+cat("\014")
+rm(list=ls())
+
 
