@@ -1,0 +1,93 @@
+# Pegar las librerías 
+
+datos<- read_excel("Ejemplo.DBA.nematicidas.xlsx", sheet=1)
+view(datos)
+attach(datos)
+colnames(datos)
+head(datos)
+
+FA<- as.factor(nematicida) 
+bloq<- as.factor(repetición)
+vr<- as.vector(nemvivos)
+y<- as.numeric(vr)
+datos2<- data.frame(FA,bloq,y)
+n_FA<- nlevels(FA); n_FA
+
+
+par(mar=c(10,4,5,4),cex=0.7)
+boxplot(y~FA, col="lightgrey", border = "black", xlab="x", ylab = "no. nem_vivos", las=2)
+
+# Calcular medias y error estándar (o desviación estándar)
+
+medias <- datos2 %>%      
+  group_by(FA) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(values = c("#D9D9D9", "#FF9999", "lightblue", "lightgreen", "black","darkgray")) 
+
+
+#ANDEVA
+  #Diseño en bloques completos al azar, experimento simple
+  # Yij = u + Ti + Bj + Eij
+
+andeva<- aov(y~FA+bloq)
+anova(andeva)
+andeva1<- lm(y~FA+bloq) #Las dos formas son equivalentes
+anova(andeva1)
+cv.model(andeva)
+
+#Verificación de los supuestos
+sw<- shapiro.test(andeva$residuals)
+print(sw)
+check_normality(andeva)
+qqPlot(andeva$residuals, col = "red", cex=1.3, pch = 16)
+plot(andeva, 2)
+
+leveneTest(y, FA, center = "mean")
+bartlett.test(y, FA)
+plot(andeva,1)
+
+par(cex.main=0.9, cex.lab=0.8)
+plot(andeva$fitted.values, andeva$residuals, col="blue", pch=16, 
+     main = "Gráfico de residuos vs predichos", abline(h=0, col="red", lwd=2))
+
+dwtest(andeva)
+
+#Análisis post-ANDEVA
+#PMM
+sk<- SK(andeva, which = "FA", sig.level = 0.05, dispersion="se")
+summary(sk)
+tukey<- HSD.test(andeva, "FA", console = T) # console=T le indica a la fx que debe colocar el resultado en consola
+duncan<- duncan.test(andeva, "FA", console = T)
+SNK<- SNK.test(andeva, "FA", console = T)
+LSD<- LSD.test(andeva, "FA", console = T)
+
+#Prueba de contrastes ortogonales
+  #Generar la matriz de contrastes (tabla de excel)
+
+contrastes<- rbind(c(-5,1, 1, 1, 1, 1), c(0,	1,	1,	1,	-4,	1), c(0,	-1,	1,	-1,	0,	1),
+                   c(0,	-1,	0,	1,	0,	0), c(0,	0,	-1,	0,	0,	1)) #rbind combina las filas (los grupos de contrastes)
+
+filas<- c("Test vs otros", "carb vs ox", "oxf vs oxs", "ox1.5f vs ox 2f", "ox1.5s vs ox2s")
+columnas<- c("test",	"Ox 1.5 F",	"Ox 1.5 S",	"Ox 2 F",	"carb15 S",	"Ox2 S")
+dimnames(contrastes)<- list(filas,columnas); dimnames(contrastes) #muestra nombres de filas y columnas
+
+contrastes #Muestra la matriz de contrastes y tratamientos
+
+#Prueba de significancia de contrastes:
+comp<- glht(andeva, linfct = mcp(FA=contrastes))
+summary(comp)
+
+
+cat("\014")
+rm(list=ls())
+graphics.off()
