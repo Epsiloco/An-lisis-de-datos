@@ -71,7 +71,7 @@ duncan<- duncan.test(andeva, "FA", console = T)
 SNK<- SNK.test(andeva, "FA", console = T)
 LSD<- LSD.test(andeva, "FA", console = T)
 
-#Prueba de contrastes ortogonales
+#Prueba de contrastes ortogonales----Con T-student
   #Generar la matriz de contrastes (tabla de excel)
 
 contrastes<- rbind(c(-5,1, 1, 1, 1, 1), c(0,	1,	1,	1,	-4,	1), c(0,	-1,	1,	-1,	0,	1),
@@ -86,6 +86,43 @@ contrastes #Muestra la matriz de contrastes y tratamientos
 #Prueba de significancia de contrastes:
 comp<- glht(andeva, linfct = mcp(FA=contrastes))
 summary(comp)
+
+#Contrastes con F-Fisher----------------------------------------------------------------------------------
+
+# Crear matriz de contrastes
+contrastes <- matrix(c(-5,	1,	1,	1,	1,	1,
+                       0,	1,	1,	1,	-4,	1,
+                       0,	-1,	1,	-1,	0,	1,
+                       0,	-1,	0,	1,	0,	0,
+                       0,	0,	-1,	0,	0,	1), nrow = 5, byrow = TRUE)
+
+# Asignar nombres
+rownames(contrastes) <- c("Test vs otros", "carb vs ox", "oxf vs oxs", "ox1.5fvs ox 2f", "ox1.5s vs ox2s")
+
+# Asignar contrastes a la variable
+contrasts(FA) <- contras <- t(contrastes)
+
+modelo_contrastes <- aov(y ~ FA + bloq)
+summary(modelo_contrastes, split = list(FA = list(
+  "Test vs otros"= 1,
+  "carb vs ox" = 2,
+  "oxf vs oxs" = 3,
+  "ox1.5fvs ox 2f" = 4,
+  "ox1.5s vs ox2s" = 5
+)))
+
+# Calcular los valores de los contrastes
+colnames(contrastes) <- levels(datos2$FA); colnames(contrastes)
+
+
+# Aplicar contrastes con glht()
+res_contrastes <- glht(andeva, linfct = mcp(FA = contrastes)) #En este caso sirve para calcular el valor de los contrastes
+
+# Mostrar resumen con valores estimados de los contrastes (con signo)
+summary(res_contrastes)
+
+
+
 
 
 cat("\014")
