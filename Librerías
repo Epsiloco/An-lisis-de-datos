@@ -44,7 +44,7 @@ paquetes <- c(
   "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
   "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
   "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
-  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest"
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView"
 )
 
 # Verifica cuáles no están instalados
