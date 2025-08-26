@@ -1,0 +1,143 @@
+# Pegar liberías
+
+datos<- read_excel("maíz_ancova (1).xlsx", sheet=1)
+view(datos)
+print(head(datos))
+colnames(datos)
+attach(datos)
+
+FA<- as.factor(Tratamiento)
+bloq<- as.factor(Repetición)
+x1<- as.vector(X)
+x<- as.numeric(x1)
+vr<- as.vector(Y)
+y<- as.numeric(vr)
+datos2<- data.frame(FA,x,bloq,y)
+attach(datos2)
+datos2$trat<- 1:12
+datos2<- datos2 %>% relocate(trat, .before = FA)
+
+n_FA<- nlevels(FA);n_FA
+
+boxplot(y~FA, col="lightpink", border = "red")
+
+
+medias <- datos2 %>%      
+  group_by(FA) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+print(medias)
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(name = "Trat", values = c("#D9D9D9", 
+                                              "#FF9999", 
+                                              "lightblue", 
+                                              "lightgreen")) 
+
+#ANCOVA: diseño completamente al azar (DCA)
+# Yij = u + Ti + Bj + B(xij-Xm) + Eij
+
+ancova<- aov(y~FA+bloq+x)
+summary(ancova)
+ancova1<- aov(y~FA*x+bloq) #Supuesto de homogeneidad de pendientes
+summary(ancova1)
+print(anova(ancova, ancova1)) #comparación de los dos modelos para comprobar HP
+cv.model(ancova)
+
+plot(x,y, col=FA, pch=16, cex=1.2)
+
+ggplot(datos2, aes(x=x, y=y, color = FA)) +
+  geom_point() +
+  geom_smooth(method = "lm", se=FALSE) +
+  labs(x="cov", y="VR", title="Gráfico de pendientes", color = "Trat") +
+  theme_minimal() +
+  theme(legend.position = "right") 
+
+correlaciones<- datos2 %>%
+  group_by(FA) %>%
+  summarise(coeficiente = cor(x,y, method = "pearson"),
+            p_valor = cor.test(x, y, method = "pearson")$p.value)
+
+print(correlaciones)
+
+#Gráfico para ver si los datos se adaptan a curvas
+
+ggplot(datos2, aes(x=x, y=y, color=FA)) +
+  geom_point() +
+  geom_smooth(method = "loess", se=F) +
+  labs(x = "cov", y = "Resp", title = "Relación no lineal entre X e Y", color="trat")
+
+
+ancova2<- aov(x~FA+bloq) #No diferencias significativas indica HP e independencia de x en cada trat
+summary(ancova2)
+
+#Cálculo de coeficiente angular Beta
+ancova3<- lm(y~FA+bloq+x) #el coeficiente solo se obtiene con lm
+summary(ancova3)
+
+#Media general de la VR
+mean(datos2[,5])
+mean(y)
+
+#Normalidad
+shapiro.test(ancova$residuals)
+check_normality(ancova)
+plot(ancova,2)
+qqPlot(ancova$residuals, col="red", pch=16, cex=1.2)
+
+#Homocedasticidad
+leveneTest(y~FA, center="mean")
+bartlett.test(y~FA)
+check_heteroscedasticity(ancova)
+
+#Independencia
+dwtest(ancova)
+
+#PMM:
+sk<- SK(ancova, which = "FA", dispersion="se", sig.level = 0.05)
+summary(sk)
+
+#Medias ajustadas
+medias_ajustadas<- lsmeans(ancova,~FA)
+print(medias_ajustadas)
+
+medias_aj2 <- emmeans(ancova, ~ FA); print(medias_aj2) #Otra forma de hacerlo
+
+
+# Hacer las comparaciones o contrastes de dos en dos (pares)
+tukey<- lsmeans(ancova, pairwise~FA, glhargs=list());tukey
+duncan<- lsmeans(ancova, pairwise~FA, glhargs=list("duncan"));duncan
+
+tukey1<- pairs(medias_ajustadas, adjust = "tukey") #otra forma (con emmeans)
+summary(tukey1)
+
+
+#Prueba de Tukey original
+tukey_cld <- cld(medias_aj2, adjust = "sidak", Letters = letters)
+print(tukey_cld)
+
+
+#Gráfico de barras con medias ajustadas:
+medias_aj3<- as.data.frame(summary(medias_aj2))
+
+ggplot(medias_aj3, aes(x = FA, y = emmean, fill = FA)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.4) +
+  labs(x = "Tratamiento (FA)", y = "Media ajustada de Y", 
+       title = "Medias ajustadas por nivel de FA",
+       fill="Trat") +
+  theme_minimal() +
+  theme(legend.position = "right") 
+
+
+rm(list=ls())
+graphics.off()
+cat("\14")
