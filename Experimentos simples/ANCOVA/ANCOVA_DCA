@@ -1,1 +1,112 @@
+install.packages("mice")
+install.packages("corrplot")
+install.packages("GGally")
+install.packages('lsmeans')
+library(GGally)
+library(mice) #para realizar imputación múltiple
+library(corrplot)
+library(readxl)
+library(doebioresearch)
+library(performance)
+library(dplyr)
+library(ScottKnott)
+library(agricolae)
+library(car)
+library(broom)
+library(data.table)        
+library(emmeans)
+library(ggplot2)
+library(tidyverse)
+library(lattice)
+library(nlme)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(rstatix)
+library(ggpubr)
+library(see)
+library(MASS)
+library(lsmeans)
 
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+setwd("C:/Users/LUIS/Desktop/USAC 2/9no. semestre/MIAPA/Base de datos")
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+
+#ANDEVA
+
+#Definición del modelo y análisis de la varianza
+
+Alim<- factor(Alimento)
+#Se crea un vector de datos Pesoi con la columna Peso.in (covariable):
+Pesoi<-as.vector(Peso.in)
+Pesi<-as.numeric(Pesoi)
+
+pesf<-as.vector(Peso.fin)
+pes1<-as.numeric(pesf)
+
+#Suposiciones del ANCOVA
+#1. Igualdad de pendientes: el coef angular para cada grupo de tratam debe ser el mismo
+  #La interacción no es significativa, probar la igualdad de pendientes, o sea, que la covariable está asociada con la variable de respuesta de la misma manera entre los grupos (tratamientos).
+
+#Análisis de Covarianza
+result1 <- aov(pes1~Alim*Pesi,data = ANC1)
+result2<- aov(pes1~Alim+Pesi,data = ANC1)
+print(anova(result1,result2))
+
+  #En caso no se obtenga un resultado significativo, la relación es lineal (se cumple el supuesto 1)
+
+#Otra forma para obtener Análisis de Covarianza:
+
+result3 <- aov(pes1~Alim+Pesi+Alim:Pesi,data = ANC1)
+summary(result3)
+
+
+#2. Linealidad de pendientes.
+#Se observa las pendientes o las líneas de tendencia entre los grupos. Deberán verse más o menos iguales.
+
+plot(Pesi, pes1, col = Alim, xlab = "Peso inicial", ylab = "Peso final")
+
+#3. Igualdad de los grupos respecto a la covariable.
+#Realizar un ANOVA con la covariable y los tratamientos. No deberá encontrarse diferencias significativas
+
+COV3<-aov(Pesi~Alim,data=ANC1)
+summary(COV3)
+
+#4. Homogeneidad de varianzas
+leveneTest(pes1 ~ Alim, center = mean, data = ANC1) 
+
+
+#Análisis de covarianza usando la función modelo lineal (lm) Linear mode
+modCOV<-lm(pes1~Alim+Pesi,data=ANC1)
+Anova(modCOV, type="III")
+
+#Coeficiente de variación
+cv.model(modCOV) 
+
+#Media general de la variable de respuesta
+mean(ANC1[,3]) 
+sumRes<-summary(modCOV)
+print(sumRes)
+#Observe la estimación para peso inicial, es el coeficiente angular de la regresión (beta estimado)
+
+#5. Normalidad de los residuos
+
+shapiro.test(modCOV$res)
+plot(modCOV)
+
+#Pruebas de comparación múltiple de medias
+#Como la covariable tiene un efecto significativo, es necesario ajustar las medias, se instala la biblioteca: “lsmeans” (Least-squares means)
+
+
+#Ajuste de medias
+
+lsmeans(modCOV,~Alim)
+
+#Comparaciones dos a dos con las medias corregidas:
+  
+  medias.lsm <- lsmeans(modCOV, pairwise ~ Alim, glhargs=list());medias.lsm
+#----------------------------------------------------------------------------------------------------------------------------------------------
