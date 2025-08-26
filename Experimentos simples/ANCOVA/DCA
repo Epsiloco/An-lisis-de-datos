@@ -138,6 +138,8 @@ medias <- datos2 %>%
   group_by(FA) %>%
   summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
 
+print(medias)
+
 #Gráfico para comparar las medias por tratamiento:
 
 ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
@@ -148,33 +150,33 @@ ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
   scale_fill_manual(name = "Trat", values = c("#D9D9D9", 
-                               "#FF9999", 
-                               "lightblue", 
-                               "lightgreen", 
-                               "black", 
-                               "red", 
-                               "#FFD700", 
-                               "#FF7F50", 
-                               "#8A2BE2", 
-                               "#00CED1", 
-                               "#32CD32", 
-                               "#FF69B4"))
+                                              "#FF9999", 
+                                              "lightblue", 
+                                              "lightgreen", 
+                                              "black", 
+                                              "red", 
+                                              "#FFD700", 
+                                              "#FF7F50", 
+                                              "#8A2BE2", 
+                                              "#00CED1", 
+                                              "#32CD32", 
+                                              "#FF69B4"))
 
 #ANCOVA: diseño completamente al azar (DCA)
-    # Yij = u + Ti + B(xij-Xm) + Eij
+# Yij = u + Ti + B(xij-Xm) + Eij
 
-    #Supuestos del ANCOVA:
+#Supuestos del ANCOVA:
 
 # Homogeneidad de pendientes de regresión (B) entre X e Y para cada trat
-  # Ho: las pendientes son iguales entre cada trat
-  # Ha: las pendientes son distintas entre cada trat
+# Ho: las pendientes son iguales entre cada trat
+# Ha: las pendientes son distintas entre cada trat
 
 # Relación lineal entre X e Y (linealidad)
-  # Diagrama de dispersión entre X e Y
+# Diagrama de dispersión entre X e Y
 
 # Independencia entre FA y X (debe cumplirse la Ho para verificar independencia)
-  # Ho: Ti = T
-  # Ha: Ti distinto de T
+# Ho: Ti = T
+# Ha: Ti distinto de T
 
 # Independencia de los residuos
 # Homocedasticidad de los res
@@ -182,7 +184,8 @@ ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
 
 ancova<- aov(y~FA+x) #Modelo sin la interacción
 summary(ancova)
-ancova1<- lm(y~FA+x)
+cv.model(ancova) # %CV
+
 
 
 ancova2<- aov(y~FA*x) #Modelo con interaccion para verificar el cumplimiento de la homogeneidad de pendientes
@@ -198,7 +201,7 @@ summary(ancova3)
 plot(x, y, col = FA, pch=16, cex=1.3, xlab="Covariable", ylab = "VR")
 
 
-  # Gráfico de dispersión con líneas de regresión por nivel de Alim
+# Gráfico de dispersión con líneas de regresión por tratamiento
 
 ggplot(datos2, aes(x = x, y = y, color = FA)) +
   geom_point() +
@@ -206,7 +209,7 @@ ggplot(datos2, aes(x = x, y = y, color = FA)) +
   labs(x = "covariable", 
        y = "variable de respuesta", title = "Relación entre x e y")
 
-  # Análisis de correlación por tratamiento
+# Análisis de correlación por tratamiento
 correlaciones<- datos2 %>%
   group_by(FA) %>%
   summarise(correlacion = cor(x, y, method = "pearson"),
@@ -221,4 +224,74 @@ ggplot(datos2, aes(x = x, y = y, color = FA)) +
   geom_smooth(method = "loess", se = FALSE) +
   labs(x = "cov", y = "Resp", title = "Relación no lineal entre X e Y")
 
-ancova4<- aov(y)
+
+# ANCOVA CON lm y cálculo del coeficiente angular de regresión (B)
+
+ancova5<- lm(y~FA+x) # Otra forma de realizar el ANCOVA
+Anova(ancova5, type = "III")
+
+sumRes<- summary(ancova5)
+print(sumRes)
+
+# Media general de la VR
+mean(datos2[,3])
+mean(y) # Otra forma
+
+# Normalidad:
+shapiro.test(ancova$residuals)
+check_normality(ancova)
+qqPlot(ancova$residuals, col="red", pch=16, cex=1.3)
+plot(ancova,2)
+
+# Homocedasticidad
+leveneTest(y~FA, center = "mean")
+check_heteroscedasticity(ancova)
+plot(ancova$fitted.values, ancova$residuals, col = "red", pch = 16, cex = 1.3,
+     xlab="predichos", ylab="residuos", abline(h=0, col="black", lwd= 2))
+
+# Independencia
+dwtest(ancova)
+
+
+
+# PMM:
+lsmeans(ancova,~FA) # Medias de Y ajustadas por el efecto de la covariable x
+
+medias_ajustadas <- emmeans(ancova, ~ FA); print(medias_ajustadas) #Otra forma de hacerlo
+
+
+  # Hacer las comparaciones o contrastes de dos en dos (pares)
+tukey<- lsmeans(ancova, pairwise~FA, glhargs=list());tukey
+duncan<- lsmeans(ancova, pairwise~FA, glhargs=list("duncan"));duncan
+
+tukey1<- pairs(medias_ajustadas, adjust = "tukey") #otra forma (con emmeans)
+summary(tukey1)
+
+
+#Prueba de Scott-Knott
+sk<- SK(ancova, which = "FA", dispersion = "se", sig.level = 0.05)
+summary(sk)
+
+tukey1<- HSD.test(ancova, "FA", console = T)
+
+#Prueba de Tukey original
+tukey_cld <- cld(medias_ajustadas, adjust = "sidak", Letters = letters)
+print(tukey_cld)
+
+
+#Gráfico de barras con medias ajustadas:
+medias_aj<- as.data.frame(summary(medias_ajustadas))
+
+ggplot(medias_aj, aes(x = FA, y = emmean, fill = FA)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.4) +
+  labs(x = "Tratamiento (FA)", y = "Media ajustada de Y", 
+       title = "Medias ajustadas por nivel de FA",
+       fill="Trat") +
+  theme_minimal() +
+  theme(legend.position = "right") 
+
+
+graphics.off()
+rm(list=ls())
+cat("\14")
