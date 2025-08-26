@@ -110,3 +110,115 @@ lsmeans(modCOV,~Alim)
   
   medias.lsm <- lsmeans(modCOV, pairwise ~ Alim, glhargs=list());medias.lsm
 #----------------------------------------------------------------------------------------------------------------------------------------------
+#Otra forma:
+# Pegar librerias
+
+datos<- read_excel("covarianza.xlsx", sheet=1)
+view(datos)
+attach(datos)
+print(head(datos))
+
+FA<- as.factor(Tratamientos)
+bloq<- as.factor(Bloques)
+vr<- as.vector(Y)
+y<- as.numeric(vr)
+x1<- as.vector(X)
+x<- as.numeric(x1)
+
+datos2<- data.frame(FA, bloq, y, x)
+attach(datos2)
+n_FA<- nlevels(FA);n_FA
+
+boxplot(y~FA, col="lightgray", border="black", xlab="Trat", ylab="Y")
+
+
+# Calcular medias y error estándar (o desviación estándar)
+
+medias <- datos2 %>%      
+  group_by(FA) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(name = "Trat", values = c("#D9D9D9", 
+                               "#FF9999", 
+                               "lightblue", 
+                               "lightgreen", 
+                               "black", 
+                               "red", 
+                               "#FFD700", 
+                               "#FF7F50", 
+                               "#8A2BE2", 
+                               "#00CED1", 
+                               "#32CD32", 
+                               "#FF69B4"))
+
+#ANCOVA: diseño completamente al azar (DCA)
+    # Yij = u + Ti + B(xij-Xm) + Eij
+
+    #Supuestos del ANCOVA:
+
+# Homogeneidad de pendientes de regresión (B) entre X e Y para cada trat
+  # Ho: las pendientes son iguales entre cada trat
+  # Ha: las pendientes son distintas entre cada trat
+
+# Relación lineal entre X e Y (linealidad)
+  # Diagrama de dispersión entre X e Y
+
+# Independencia entre FA y X (debe cumplirse la Ho para verificar independencia)
+  # Ho: Ti = T
+  # Ha: Ti distinto de T
+
+# Independencia de los residuos
+# Homocedasticidad de los res
+# Normalidad
+
+ancova<- aov(y~FA+x) #Modelo sin la interacción
+summary(ancova)
+ancova1<- lm(y~FA+x)
+
+
+ancova2<- aov(y~FA*x) #Modelo con interaccion para verificar el cumplimiento de la homogeneidad de pendientes
+summary(ancova2)
+print(anova(ancova, ancova2)) # Para comparar los modelos y verificar el cumplimiento del supuesto de HP
+
+ancova3<- aov(y~FA+x+FA:x) # Otra forma de verificar el supuesto de HP
+summary(ancova3)
+# En un grafico de dispersión las líneas de cada tratamiento deben ser paralelas
+
+
+#Verificar supuesto de linealidad de pendientes
+plot(x, y, col = FA, pch=16, cex=1.3, xlab="Covariable", ylab = "VR")
+
+
+  # Gráfico de dispersión con líneas de regresión por nivel de Alim
+
+ggplot(datos2, aes(x = x, y = y, color = FA)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "covariable", 
+       y = "variable de respuesta", title = "Relación entre x e y")
+
+  # Análisis de correlación por tratamiento
+correlaciones<- datos2 %>%
+  group_by(FA) %>%
+  summarise(correlacion = cor(x, y, method = "pearson"),
+            p_valor = cor.test(x, y, method = "pearson")$p.value)
+
+print(correlaciones)
+
+
+#Gráfico para verificar que los puntos se ajusten a líneas curvas (en ese caso, no hay linealidad)
+ggplot(datos2, aes(x = x, y = y, color = FA)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = FALSE) +
+  labs(x = "cov", y = "Resp", title = "Relación no lineal entre X e Y")
+
+ancova4<- aov(y)
