@@ -1,1 +1,92 @@
+# Pegar librerías 
 
+# ANALISIS DE BIODIVERSIDAD
+  #Preparación de los datos
+
+datos<- as.data.frame(datos) #Convertir a data.frame tradicional (no tribble)
+
+rownames(datos)<- datos$Especie #para colocar en filas el nombre de las spp
+datos<- datos[,-1] #Eliminar columna
+datos$Especie<- NULL #Eliminar columna (otra forma)
+print(rownames(datos))
+
+datos_t<- t(datos) #Transponer los datos
+
+
+# Riqueza (S)
+riqueza<- specnumber(datos_t);riqueza #No. de especies/parcela o área
+barplot(riqueza, col = c("green", "blue", "lightblue", "orange", "gray", "pink","yellow","purple",
+                         "black", "red"), xlab = "Parcelas", ylab="No. especies")
+
+riqueza2<- specnumber(datos);datos # Abundancia/especie/parcela
+
+# Abundancia
+boxplot(datos_t, xlab="", ylab="abundancia", legend = rownames(datos_t),
+        cex.lab = 1, cex.axis = 0.5, las = 2, col="yellow")
+
+#Indices de biodiversidad alpha
+#Indice de Shannon-Weiner
+H<- diversity(datos_t, index = "shannon");H #H por parcela
+H<- diversity(datos, index = "shannon");H  #H ´pr especie
+
+#Fisher.alfa
+fisher<- fisher.alpha(datos_t, se=T);fisher # por parcela
+fisher<- fisher.alpha(datos, se=T);fisher # por especie
+
+# Dominancia de Simpson (D)
+simpson<- diversity(datos_t, index = "simpson"); simpson #por parcela
+simpson<- diversity(datos, index = "simpson"); simpson # por especie
+
+# Inverso de Simpson (1-D) o índice de equitatividad
+invsimp<- diversity(datos_t, index = "inv"); invsimp #por parcela
+invsimp<- diversity(datos, "inv"); invsimp #por especie
+
+#Relación entre el índice de Shannon y Simpson (1-D)
+plot(invsimp, H, pch=16, col="red", cex=1.2, bg=3)
+grid()
+identify(invsimp, H) #Marcar los puntos con el mouse, luedo dar Esc para marcar los puntos
+
+#Curva de acumulación de especies
+curva1<- specaccum(datos_t) #por parcela
+print(curva1)
+plot(curva1, col = "blue", ci.type = "poly", ci.col="lightgray", lwd=2,
+     ci.lty = 0, xlab = "Parcelas (esfuerzo de muestreo)", ylab = "Riqueza (No especies)")
+
+
+curva<- specaccum(datos);curva
+plot(curva, ci.type = "poly", ci.lty = 0, col="red", lwd=2, ci.col = "lightblue") #Por especie
+
+
+# Bray-Curtis
+dist_brays <- vegdist(datos_t, method = "bray"); dist_brays
+#Jaccard
+jaccard <- vegdist(datos_t, method = "jaccard"); jaccard
+morisita <- vegdist(datos_t, method = "morisita"); morisita
+
+# Clustering jerárquico
+clust1 <- hclust(dist_brays, method = "average")
+clust2 <- hclust(jaccard, method = "average")
+clust3 <- hclust(morisita, method = "average")
+
+# Dendrograma
+plot(clust1, main = "Dendrograma (Bray-Curtis)", xlab = "Sitios")
+plot(clust2, main = "Dendrograma (Jaccard)", xlab = "Sitios")
+plot(clust3, main = "Dendrograma (Morisita)", xlab = "Sitios", col="blue", lwd=2)
+
+
+#Curva de rarefacción
+
+rarecurve(datos_t, step = 20, col = rainbow(10), cex = 0.6, label = F, lwd=2.2,
+          ylab = "No. Especies", xlab = "tamaño de muestra")
+legend("bottomright", legend = rownames(datos_t), col = rainbow(5), lty = 1, cex = 0.6, lwd = 3)
+
+
+#Curva de rarefacción por cada dos parcelas
+rarecurve(datos_t[c(1,2),], step = 20, col = c("red","blue"), cex = 0.6, label = F, lwd=2.2,
+          ylab = "No. Especies", xlab = "Tamaño de muestra")
+legend("bottomright", legend = rownames(datos_t[c(1,2),]), col = c("red","blue"), lty = 1, cex = 1, lwd = 3)
+grid()
+
+graphics.off()
+rm(list = ls())
+cat("\14")
