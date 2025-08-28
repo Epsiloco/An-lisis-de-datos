@@ -24,7 +24,7 @@ lapply(paquetes, library, character.only = TRUE)
 
 # Abrir tabla de datos desde Google Drive:
   #Copiar el link desde Drive de forma compartida (todos los usiarios con el enlace)
-  # Copiar ID del URL: lo que va después de /d/ y antes de /view
+  # Copiar ID del URL: lo que va después de /d/ y antes de /view o /Edit
 
 ID<- "1EFcC6vvSD47m29o9rR2zMygc_fphbo7m"
 
