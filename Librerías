@@ -5,7 +5,7 @@ paquetes <- c(
   "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
   "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
   "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", "googlesheets4", 
-  "googledrive"
+  "googledrive", "vegan", "BiodiversityR", "clipr"
 )
 
 # Verifica cuáles no están instalados
@@ -35,6 +35,10 @@ drive_download(as_id(ID), path = temp, overwrite = TRUE)
 datos <- read_excel(temp, sheet = 3)
 head(datos)
 view(datos)
+attach(datos)
+colnames(datos)
 
 # Desde archivos guardados en la computadora:
 datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
+attach(datos)
+#------------------------------------------------------------------------------------------------
