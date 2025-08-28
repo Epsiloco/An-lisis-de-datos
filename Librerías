@@ -1,50 +1,11 @@
-install.packages("modeest")
-install.packages("psych")
-library(openxlsx)
-library(fBasics)
-library(psych)
-library(modeest)
-library(tribble)
-library(ggrepel)
-library(GGally)
-library(mice) #para realizar imputación múltiple
-library(corrplot)
-library(readxl)
-library(doebioresearch)
-library(performance)
-library(dplyr)
-library(ScottKnott)
-library(agricolae)
-library(car)
-library(broom)
-library(data.table)        
-library(emmeans)
-library(ggplot2)
-library(tidyverse)
-library(lattice)
-library(nlme)
-library(lme4)
-library(lmerTest)
-library(multcomp)
-library(rstatix)
-library(ggpubr)
-library(see)
-library(MASS)
-library(lsmeans)
-library(scales)
-
-
-
-
-
-#---------------------------------------------------------------------------------
 # Lista de paquetes requeridos
 paquetes <- c(
   "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
   "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
   "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
   "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
-  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView"
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", "googlesheets4", 
+  "googledrive"
 )
 
 # Verifica cuáles no están instalados
@@ -60,3 +21,20 @@ if(length(no_instalados)) {
 # Carga todos los paquetes (opcional)
 lapply(paquetes, library, character.only = TRUE)
 #----------------------------------------------------------------------------------------------------
+
+# Abrir tabla de datos desde Google Drive:
+  #Copiar el link desde Drive de forma compartida (todos los usiarios con el enlace)
+  # Copiar ID del URL: lo que va después de /d/ y antes de /view
+
+ID<- "1EFcC6vvSD47m29o9rR2zMygc_fphbo7m"
+
+# Descargar temporalmente el archivo desde Google Drive
+temp <- tempfile(fileext = ".xlsx")
+drive_download(as_id(ID), path = temp, overwrite = TRUE)
+
+datos <- read_excel(temp, sheet = 3)
+head(datos)
+view(datos)
+
+# Desde archivos guardados en la computadora:
+datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
