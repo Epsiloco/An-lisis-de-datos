@@ -1,0 +1,28 @@
+grViz("
+digraph organigrama {
+  graph [layout = dot, rankdir = TB]
+
+  # Definimos estilos de nodos por nivel
+  node [shape = box, style = filled, fontname = Helvetica]
+  
+  # Nivel 1 (Gerencia General)
+  gerencia_general [label = 'Gerencia General', fillcolor = '#1f77b4', fontcolor = white]
+  
+  # Nivel 2 (Gestión Empresarial y RRHH)
+  gestion_empresarial [label = 'Gestión Empresarial', fillcolor = '#ff7f0e']
+  rrhh [label = 'Gerencia de Recursos Humanos', fillcolor = '#ff7f0e']
+  
+  # Nivel 3 (Gerencias operativas)
+  industrial [label = 'Gerencia Industrial', fillcolor = '#2ca02c']
+  agricola [label = 'Gerencia Agrícola', fillcolor = '#2ca02c']
+  financiera [label = 'Gerencia Financiera', fillcolor = '#2ca02c']
+  
+  # Nivel 4 (Taller)
+  taller [label = 'Taller de Maquinaria Agrícola', fillcolor = '#d62728', fontcolor = white]
+  
+  # Conexiones
+  gerencia_general -> {gestion_empresarial rrhh}
+  gestion_empresarial -> {industrial agricola financiera}
+  agricola -> taller
+}
+")
