@@ -1,0 +1,134 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", "googlesheets4", 
+  "googledrive", "clipr", "FactoMineR", "factoextra"
+)
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#----------------------------------------------------------------------------------------------------
+
+
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 1); attach(datos)
+view(datos)
+
+colnames(datos)
+trat <- as.factor(Tratamiento)
+rep <- as.factor(Replica)
+pob <- as.vector(Poblacion)
+Pob <- as.numeric(pob)
+vr <- as.vector(TCH)
+y <- as.numeric(vr)
+datos2 <- data.frame(trat, rep, Pob, y); attach(datos2)
+view(datos2)
+
+#Análisis exploratorio
+par(mar=c(9,6,4,5),cex=0.6)
+boxplot(y~trat, border="black", col="white", las=2)
+
+medias <- datos2 %>%      
+  group_by(trat) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+print(medias)
+
+ggplot(medias, aes(x = trat, y = Media, fill = trat)) +
+  geom_bar(stat = "identity", color = "black", width = 0.4) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(name = "Trat", values = c("#D9D9D9", 
+                                              "#FF9999", 
+                                              "lightblue", 
+                                              "lightgreen")) 
+
+
+###################################### ANDEVAtrat###################################### ANDEVA (modelo lineal de efectos fijos)
+andeva <- aov(y~trat+rep)
+anova(andeva)
+qqPlot(andeva$residuals, pch=16, col="red", cex=1.4)
+shapiro.test(andeva$residuals)
+check_normality(andeva)
+plot(andeva, 1, col="red",pch=16, cex=1.5)
+dwtest(andeva)
+tukey <- HSD.test(andeva, "trat", console = T)
+sk <- SK(andeva, which = "trat", sig.level = 0.15, dispersion=se)
+summary(sk)
+#################################### ANCOVA con poblacion como covariable
+ancova <- aov(y~trat+rep+Pob);anova(ancova)
+sk <- SK(ancova, which = "trat", sig.level = 0.15, dispersion=se); summary(sk)
+plot(ancova,1)
+plot(ancova,2)
+check_heteroscedasticity(ancova)
+###################################### MLM (Poblacion como factor de efecto aleatorio, la pendiente se considerará fija y el intercepto aleatorio)
+modelo_mixto <- lmer(y ~ trat + rep + (1 | Pob))
+anova(modelo_mixto)
+VarCorr(modelo_mixto)
+summary(modelo_mixto)
+
+#Ajuste de medias para hacer PMM
+medias <- emmeans(modelo_mixto,~trat);medias
+tukey <- pairs(medias, adjust = "tukey"); tukey #Comparación por pares
+medias_data.frame <- as.data.frame(medias); attach(medias_data.frame); medias_data.frame
+
+
+#Verificación de los supuestos
+# Normalidad
+qqnorm(resid(modelo_mixto), col="red", pch=16, cex=1.3)
+qqline(resid(modelo_mixto), lwd=2); par(mar=c(5,6,6,5), cex=0.7)
+shapiro.test(resid(modelo_mixto))
+
+# Homocedasticidad
+plot(fitted(modelo_mixto), resid(modelo_mixto),
+     xlab = "Valores ajustados", ylab = "Residuos")
+abline(h = 0, col = "red", lwd=2.5)
+
+leveneTest(resid(modelo_mixto) ~ datos2$trat, center="mean")
+
+#######################################################--Análisis de componentes principales (PCA)
+
+variables <- datos2[, c("y", "Pob")] #Solo para variables cuantitativas
+pca <- PCA(variables, scale.unit = TRUE, graph = FALSE) #Escalar
+
+#Gráfico de variables
+fviz_pca_ind(pca, 
+             geom.ind = "point",
+             col.ind = datos2$trat,   # variable categórica
+             palette = "jco",
+             addEllipses = TRUE,
+             legend.title = "Grupo")
+
+#Biplot
+fviz_pca_biplot(pca, 
+                col.ind = datos2$trat,
+                palette = "jco",
+                addEllipses = TRUE,
+                label = "var",
+                col.var = "black")
+#Gráfico de variables
+fviz_pca_var(pca,
+             col.var = "contrib",     # colorea por contribución al eje
+             gradient.cols = c("blue", "blue", "red"),
+             repel = TRUE)            # evita que se sobrepongan las etiquetas
