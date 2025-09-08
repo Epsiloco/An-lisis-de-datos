@@ -20,7 +20,7 @@ if(length(no_instalados)) {
 
 # Carga todos los paquetes (opcional)
 lapply(paquetes, library, character.only = TRUE)
-#----------------------------------------------------------------------------------------------------
+#################################################################################################
 
 # Abrir tabla de datos desde Google Drive:
   #Copiar el link desde Drive de forma compartida (todos los usiarios con el enlace)
@@ -38,7 +38,16 @@ view(datos)
 attach(datos)
 colnames(datos)
 
-# Desde archivos guardados en la computadora:
+################################################################--Desde archivos guardados en la computadora:
 datos<- read_excel("LABORATORIO DE FERTI CÁLCULOS.xlsx")
 attach(datos)
+######################################################################-- Forma rápida
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 1)
 #------------------------------------------------------------------------------------------------
