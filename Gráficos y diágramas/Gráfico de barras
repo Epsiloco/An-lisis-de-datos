@@ -1,0 +1,66 @@
+#####################--Gráfico de barras simple--###############################
+# Convertir variable categórica a factor
+datos$Mes <- factor(datos$Mes, levels = datos$Mes)
+
+ggplot(datos, aes(x = Mes)) +
+  geom_bar(aes(y = p3), stat = "identity", fill = "blue", alpha = 0.4) +   #en "Y" se coloca la variable
+  geom_text(aes(y = p3, label = p3), vjust = -0.5, size = 3, color = "black") +
+  scale_y_continuous(name = "Precipitación (mm)") +
+  labs(title = "", x = "Mes", y = "Precipitación (mm)") +
+  theme_minimal()
+##################################---Gráfico de barras con los datos ordenados de forma ascendente
+
+view(datos)
+colnames(datos)
+
+ggplot(datos, aes(x = reorder(Mes, -p3))) +  # ← el "-" hace que sea de mayor a menor
+  geom_bar(aes(y = p3), 
+           stat = "identity", 
+           fill = "blue", 
+           alpha = 0.4) +
+  geom_text(aes(y = p3, label = p3),
+            vjust = -0.5, 
+            size = 3, 
+            color = "black") +
+  labs(
+    title = "",
+    x = "Mes",
+    y = "Precipitación (mm)"
+  ) +
+  theme_minimal()
+
+################################################---Gráfico de barras con datos ascendentes y con grilla
+# Definir transparencia de la grilla (0 = totalmente transparente, 1 = opaco)
+transparencia_grid <- 0.3
+
+# Convertir transparencia a hexadecimal
+alpha_hex <- function(alpha){
+  sprintf("%02X", round(alpha * 255))
+}
+
+# Colores de grilla con transparencia
+color_grid_major <- paste0("#999999", alpha_hex(transparencia_grid)) # gris principal
+color_grid_minor <- paste0("#CCCCCC", alpha_hex(transparencia_grid)) # gris secundario
+
+# Gráfico
+ggplot(datos, aes(x = reorder(Mes, -p3))) +  # barras de mayor a menor
+  geom_bar(aes(y = p3), 
+           stat = "identity", 
+           fill = "blue", 
+           alpha = 0.4) +
+  geom_text(aes(y = p3, label = p3),
+            vjust = -0.5, 
+            size = 3, 
+            color = "black") +
+  labs(
+    title = "",
+    x = "Mes",
+    y = "Precipitación (mm)"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.major = element_line(color = color_grid_major, size = 0.6),
+    panel.grid.minor = element_line(color = color_grid_minor, size = 0.3)
+  )
+
+####################################################################################################
