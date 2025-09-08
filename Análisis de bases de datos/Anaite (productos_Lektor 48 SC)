@@ -1,0 +1,83 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", "googlesheets4", 
+  "googledrive", "clipr", "FactoMineR", "factoextra"
+)
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])]
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 2); view(datos); attach(datos)
+#####################################################################################################
+colnames(datos)
+trat<- as.factor(Trat)
+bloq<- as.factor(rep)
+ms<- as.factor(Mts_sobrantes)
+vr<- as.vector(TCH)
+TCH<- as.numeric(vr)
+datos2<- data.frame(trat,bloq,ms,TCH); view(datos2)
+nlevels(trat)
+
+boxplot(TCH~trat, col="white", las=1)
+
+
+medias <- datos2 %>%      
+  group_by(trat) %>%
+  summarise(Media = mean(TCH, na.rm = TRUE), SE = sd(TCH, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = trat, y = Media, fill = trat)) +
+  geom_bar(stat = "identity", color = "black", width = 0.4) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "", x = "var", y = "TCH") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(name="Tratamiento",values = c("#D9D9D9", "#FF9999", "lightblue", "blue")) 
+
+##############################--ANDEVA para modelo de efectos fijos--########################
+
+andeva<- lm(TCH~trat)
+anova(andeva)
+cv.model(andeva)
+
+qqPlot(andeva$residuals)
+sw<- shapiro.test(andeva$residuals); print(sw)
+
+plot(andeva$fitted.values, andeva$residuals, col="red", pch=1, pty=3, abline(h=0, col="red", lwd=3))
+leveneTest(TCH~trat, center="mean")
+bartlett.test(TCH~trat)
+
+sk<- SK(andeva, which = "trat", sig.level = 0.15, dispersion="se")
+summary(sk)
+par(mfrow=c(2,2))
+plot(andeva)
+check_normality(andeva)
+win.graph(11,11)
+check_model(andeva)
+
+
+detach(datos)
+rm(list=ls())
