@@ -1,0 +1,34 @@
+trat <- as.factor(Tratamiento)
+rep <- as.factor(Replica)
+pob <- as.vector(Poblacion)
+Pob <- as.numeric(pob)
+vr <- as.vector(TCH)
+y <- as.numeric(vr)
+datos2 <- data.frame(trat, rep, Pob, y); attach(datos2)
+view(datos2)
+
+#######################################################--Análisis de componentes principales (PCA)
+
+variables <- datos2[, c("y", "Pob")] #Solo para variables cuantitativas
+pca <- PCA(variables, scale.unit = TRUE, graph = FALSE) #Escalar
+
+#Gráfico de variables
+fviz_pca_ind(pca, 
+             geom.ind = "point",
+             col.ind = datos2$trat,   # variable categórica
+             palette = "jco",
+             addEllipses = TRUE,
+             legend.title = "Grupo")
+
+#Biplot
+fviz_pca_biplot(pca, 
+                col.ind = datos2$trat,
+                palette = "jco",
+                addEllipses = TRUE,
+                label = "var",
+                col.var = "black")
+#Gráfico de variables
+fviz_pca_var(pca,
+             col.var = "contrib",     # colorea por contribución al eje
+             gradient.cols = c("blue", "blue", "red"),
+             repel = TRUE)            # evita que se sobrepongan las etiquetas
