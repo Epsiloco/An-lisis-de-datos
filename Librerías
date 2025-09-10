@@ -9,7 +9,7 @@ paquetes <- c(
   "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap")
 
 # Verifica cuáles no están instalados
-no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])]
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
 
 # Instala los que faltan
 if(length(no_instalados)) {
