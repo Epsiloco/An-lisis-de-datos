@@ -1,0 +1,118 @@
+#Gráficos para diagnóstico de homocedasticidad
+  # Parcelas divididas (DBCA)
+
+
+# --------------------------------------------------------------------------
+# DIAGNÓSTICO DE HOMOCEDASTICIDAD CON BOXPLOTS COLOREDOS
+# --------------------------------------------------------------------------
+
+# 1. Realizar pruebas de homocedasticidad (usando las variables de tu script)
+levene_fa <- leveneTest(modelo$residuals, FA, center = "mean")
+levene_fb <- leveneTest(modelo$residuals, FB, center = "mean")
+levene_interaction <- leveneTest(modelo$residuals, interaction(FA, FB), center = "mean")
+
+bartlett_fa <- bartlett.test(modelo$residuals, FA)
+bartlett_fb <- bartlett.test(modelo$residuals, FB)
+bartlett_interaction <- bartlett.test(modelo$residuals, interaction(FA, FB))
+
+# 2. Crear data frame con residuos y tratamientos
+diagnostico_df <- data.frame(
+  residuos = modelo$residuals,
+  Rendimiento = y,
+  FA = FA,
+  FB = FB,
+  FA_FB = interaction(FA, FB, sep = " x ")
+)
+
+# 3. Determinar qué factores fallan homocedasticidad
+fa_falla <- levene_fa$`Pr(>F)`[1] < 0.05 | bartlett_fa$p.value < 0.05
+fb_falla <- levene_fb$`Pr(>F)`[1] < 0.05 | bartlett_fb$p.value < 0.05
+interaction_falla <- levene_interaction$`Pr(>F)`[1] < 0.05 | bartlett_interaction$p.value < 0.05
+
+# 4. GRÁFICO PARA FACTOR FA (DENSIDAD)
+ggplot(diagnostico_df, aes(x = FA, y = Rendimiento)) +
+  geom_boxplot(fill = ifelse(fa_falla, "red", "lightblue"), alpha = 0.8) +
+  labs(title = paste("Homocedasticidad - Factor N (FA)\n",
+                     "Levene: p =", round(levene_fa$`Pr(>F)`[1], 4),
+                     "Bartlett: p =", round(bartlett_fa$p.value, 4)),
+       x = "Densidad (FA)", y = "Rendimiento") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12))
+
+# 5. GRÁFICO PARA FACTOR FB (HÍBRIDO)
+ggplot(diagnostico_df, aes(x = FB, y = residuos)) +
+  geom_boxplot(fill = ifelse(fb_falla, "red", "lightgreen"), alpha = 0.8) +
+  labs(title = paste("Homocedasticidad - Factor Híbrido (FB)\n",
+                     "Levene: p =", round(levene_fb$`Pr(>F)`[1], 4),
+                     "Bartlett: p =", round(bartlett_fb$p.value, 4)),
+       x = "Híbrido (FB)", y = "Residuos") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12))
+
+# 6. GRÁFICO PARA INTERACCIÓN FA:FB
+ggplot(diagnostico_df, aes(x = FA_FB, y = residuos)) +
+  geom_boxplot(fill = ifelse(interaction_falla, "red", "lightgray"), alpha = 0.8) +
+  labs(title = paste("Homocedasticidad - Interacción FA:FB\n",
+                     "Levene: p =", round(levene_interaction$`Pr(>F)`[1], 4),
+                     "Bartlett: p =", round(bartlett_interaction$p.value, 4)),
+       x = "Densidad x Híbrido", y = "Residuos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(size = 12))
+
+# 7. VERSIÓN ALTERNATIVA: Boxplots individuales por grupo de interacción
+# Crear variable de interacción
+diagnostico_df$interaccion <- interaction(FA, FB)
+
+# Realizar prueba de Bartlett para cada grupo de interacción
+grupos_interaccion <- unique(diagnostico_df$interaccion)
+resultados_bartlett <- data.frame()
+
+for (grupo in grupos_interaccion) {
+  datos_grupo <- diagnostico_df[diagnostico_df$interaccion == grupo, ]
+  if (nrow(datos_grupo) > 1) {
+    prueba <- bartlett.test(residuos ~ 1, data = datos_grupo)
+    resultados_bartlett <- rbind(resultados_bartlett, 
+                                 data.frame(grupo = grupo, p_value = prueba$p.value))
+  }
+}
+
+# Unir resultados con datos originales
+diagnostico_df <- merge(diagnostico_df, resultados_bartlett, by.x = "interaccion", by.y = "grupo")
+diagnostico_df$status_interaccion <- ifelse(diagnostico_df$p_value < 0.05, "Falla", "Cumple")
+
+# Gráfico detallado por interacción
+ggplot(diagnostico_df, aes(x = interaccion, y = residuos, fill = status_interaccion)) +
+  geom_boxplot(alpha = 0.8) +
+  scale_fill_manual(values = c("Cumple" = "lightblue", "Falla" = "red")) +
+  labs(title = "Homocedasticidad por Grupo de Interacción (Bartlett Test)",
+       x = "Densidad x Híbrido", y = "Residuos", fill = "Homocedasticidad") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 8. RESUMEN ESTADÍSTICO EN CONSOLA
+cat("=== RESUMEN DE HOMOCEDASTICIDAD ===\n")
+cat("Factor FA (Densidad):\n")
+cat("  Levene Test: p =", round(levene_fa$`Pr(>F)`[1], 4), 
+    ifelse(levene_fa$`Pr(>F)`[1] < 0.05, "(FALLA)", "(CUMPLE)"), "\n")
+cat("  Bartlett Test: p =", round(bartlett_fa$p.value, 4), 
+    ifelse(bartlett_fa$p.value < 0.05, "(FALLA)", "(CUMPLE)"), "\n\n")
+
+cat("Factor FB (Híbrido):\n")
+cat("  Levene Test: p =", round(levene_fb$`Pr(>F)`[1], 4), 
+    ifelse(levene_fb$`Pr(>F)`[1] < 0.05, "(FALLA)", "(CUMPLE)"), "\n")
+cat("  Bartlett Test: p =", round(bartlett_fb$p.value, 4), 
+    ifelse(bartlett_fb$p.value < 0.05, "(FALLA)", "(CUMPLE)"), "\n\n")
+
+cat("Interacción FA:FB:\n")
+cat("  Levene Test: p =", round(levene_interaction$`Pr(>F)`[1], 4), 
+    ifelse(levene_interaction$`Pr(>F)`[1] < 0.05, "(FALLA)", "(CUMPLE)"), "\n")
+cat("  Bartlett Test: p =", round(bartlett_interaction$p.value, 4), 
+    ifelse(bartlett_interaction$p.value < 0.05, "(FALLA)", "(CUMPLE)"), "\n")
+
+# 9. IDENTIFICAR GRUPOS ESPECÍFICOS QUE FALLAN
+if (any(resultados_bartlett$p_value < 0.05)) {
+  cat("\n=== GRUPOS DE INTERACCIÓN QUE FALLAN HOMOCEDASTICIDAD ===\n")
+  grupos_fallan <- resultados_bartlett[resultados_bartlett$p_value < 0.05, ]
+  print(grupos_fallan)
+}
