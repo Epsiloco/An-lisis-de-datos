@@ -1,0 +1,398 @@
+
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#----------------------------------------------------------------------------------------------------
+#Abrir archivo
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 9)
+
+#------------------------------------------------------------------------------------------------
+########################################--ANÁLISIS ESTADÍSTICO--##########################################
+# Análisis exploratorio de datos
+
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+summary(datos)
+colnames(datos)
+sapply(datos, class) #Tipo de datos
+variables_numericas <- datos[sapply(datos, is.numeric)]
+round(basicStats(variables_numericas), 2) #Estadística descriptiva
+
+######--EXPERIMENTOS SIMPLES--########################
+
+#DCA:
+
+#Modelo: ANDEVA para cada variable----------------------------------------------------
+ANDEVA<- aov(Brix ~ Tratamiento)
+summary(ANDEVA)
+tabla_ANDEVA<-tidy(ANDEVA)
+print(ANDEVA)
+
+#Verificacion de supuestos------------------------------------
+
+#QQ-plot
+qqPlot(ANDEVA$residuals, col = "red", lwd=2, pch=16)
+shapiroTest(ANDEVA$residuals)
+
+#Shapiro-Wilks
+SW<-shapiro.test(ANDEVA$residuals)
+print(SW)
+
+#Homocedasticidad
+plot(ANDEVA$fitted.values, ANDEVA$residuals, pch=16, col="blue", 
+     abline(h=0, col="red", lwd=3))
+
+bartlett.test(Brix~Tratamiento) #Prueba de Barlett
+leveneTest(Brix~Tratamiento, center = "median") #Prueba de Levene
+
+#PMM
+outLSD <-LSD.test(ANDEVA, "Tratamiento",console=TRUE) #prueba LSD
+outHSD<-HSD.test(ANDEVA, "Tratamiento",console=TRUE) #prueba Tukey
+SNK.test(ANDEVA, "Tratamiento",console=TRUE) #prueba de Newman Keuls (SNK)
+scheffe.test(ANDEVA, "Tratamiento",console=TRUE) #prueba de Scheffé
+duncan.test(ANDEVA, "Tratamiento",console=TRUE) #Duncan
+LSD.test(ANDEVA, "Tratamiento", p.adj= "bon",console=TRUE) #Bonferroni
+sk <- SK(ANDEVA, which= "Tratamiento",  dispersion="se", sig.level=0.05) #ScottKnott
+summary(sk)
+
+
+#ANDEVA para todas las variables de respuesta----------------------------------------------------
+
+tratamiento <- "Tratamiento"
+respuestas <- setdiff(names(datos[sapply(datos, is.numeric)]), tratamiento)
+
+for (var in respuestas) {
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  print(summary(modelo))
+}
+
+# Verificación de supuestos para todas las variables de respuesta---------------------------------
+
+for (var in respuestas) {
+  
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  cat("\n--- Verificación de supuestos ---\n")
+  
+  # 1. QQ-plot en pantalla
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  
+  # 2. Residuos vs Ajustados en pantalla
+  plot(modelo$fitted.values, modelo$residuals, 
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Shapiro-Wilk
+  if(length(unique(modelo$residuals)) > 1){
+    SW <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(SW)
+  } else {
+    cat("\nShapiro-Wilk no se puede calcular: todos los residuos son idénticos.\n")
+  }
+  
+  # Bartlett y Levene
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    print(bartlett.test(formula, data=datos))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    print(leveneTest(formula, data=datos, center="median"))
+  } else {
+    cat("Bartlett y Levene no se pueden calcular: variable constante.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+# Prueba múltiple de medias para todas las variables de respuesta
+
+for (var in respuestas) {
+  
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  cat("\n--- Pruebas de Comparaciones Múltiples de Medias ---\n")
+  
+  # LSD
+  print(LSD.test(modelo, tratamiento, console=TRUE))
+  
+  # Tukey HSD
+  print(HSD.test(modelo, tratamiento, console=TRUE))
+  
+  # Newman-Keuls (SNK)
+  print(SNK.test(modelo, tratamiento, console=TRUE))
+  
+  # Scheffé
+  print(scheffe.test(modelo, tratamiento, console=TRUE))
+  
+  # Duncan
+  print(duncan.test(modelo, tratamiento, console=TRUE))
+  
+  # Bonferroni
+  print(LSD.test(modelo, tratamiento, p.adj="bon", console=TRUE))
+  
+  # Scott-Knott
+  sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+  cat("\nScott-Knott:\n")
+  print(summary(sk))
+  
+  cat("\n------------------------------------\n")
+}
+
+
+
+
+
+
+
+tratamiento <- "Tratamiento"
+respuestas <- setdiff(names(datos[sapply(datos, is.numeric)]), tratamiento)
+
+for (var in respuestas) {
+  
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  cat("\n--- Tukey HSD ---\n")
+  outHSD <- HSD.test(modelo, tratamiento, console=TRUE)
+  
+  # -------------------------
+  # Scott-Knott
+  # -------------------------
+  cat("\n--- Scott-Knott ---\n")
+  sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+  print(summary(sk))
+  
+  cat("\n------------------------------------\n")
+}
+
+
+
+
+
+
+
+
+
+for (var in respuestas) {
+  
+  # Crear fórmula y modelo ANDEVA para la variable actual
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  cat("\n--- Tukey HSD ---\n")
+  HSD.test(modelo, tratamiento, console=TRUE)
+  
+  # -------------------------
+  # Scott-Knott
+  # -------------------------
+  cat("\n--- Scott-Knott ---\n")
+  sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+  print(summary(sk))
+  
+  cat("\n------------------------------------\n")
+}
+
+
+
+
+
+
+
+
+
+
+for (var in respuestas) {
+  
+  # Renombrar variable temporalmente si tiene caracteres especiales
+  nombre_var <- gsub("[^[:alnum:]_]", "_", var)
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  # Crear fórmula y modelo
+  formula <- as.formula(paste0("`", nombre_var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  cat("\n--- Tukey HSD ---\n")
+  HSD.test(modelo, tratamiento, console=TRUE)
+  
+  # -------------------------
+  # Scott-Knott
+  # -------------------------
+  cat("\n--- Scott-Knott ---\n")
+  sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+  print(summary(sk))
+  
+  cat("\n------------------------------------\n")
+}
+
+
+
+
+
+
+
+
+
+
+
+
+for (var in respuestas) {
+  
+  # Renombrar variable temporalmente si tiene caracteres especiales
+  nombre_var <- gsub("[^[:alnum:]_]", "_", var)
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  # Crear modelo ANDEVA
+  formula <- as.formula(paste0("`", nombre_var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  if(length(unique(datos_temp[[nombre_var]])) > 1){  # Solo si hay variación
+    cat("\n--- Tukey HSD ---\n")
+    HSD.test(modelo, tratamiento, console=TRUE)
+  } else {
+    cat("\nTukey HSD no se puede calcular: variable constante.\n")
+  }
+  
+  # -------------------------
+  # Scott-Knott
+  # -------------------------
+  if(length(unique(datos_temp[[nombre_var]])) > 1){  # Solo si hay variación
+    cat("\n--- Scott-Knott ---\n")
+    sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+    print(summary(sk))
+  } else {
+    cat("\nScott-Knott no se puede calcular: variable constante o sin variación entre tratamientos.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+
+
+
+
+
+
+for (var in respuestas) {
+  
+  # Crear un nombre seguro: prefijo "var_" + reemplazar caracteres especiales
+  nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+  
+  # Ignorar nombres que queden vacíos o solo guiones
+  if(grepl("^var_[_]*$", nombre_var)){
+    cat("\nVariable", var, "omitida: nombre no válido para análisis.\n")
+    next
+  }
+  
+  # Crear dataframe temporal con nombre seguro
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  # Crear modelo ANDEVA
+  formula <- as.formula(paste0("`", nombre_var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  if(length(unique(datos_temp[[nombre_var]])) > 1){
+    cat("\n--- Tukey HSD ---\n")
+    HSD.test(modelo, tratamiento, console=TRUE)
+  } else {
+    cat("\nTukey HSD no se puede calcular: variable constante.\n")
+  }
+  
+  # -------------------------
+  # Scott-Knott
+  # -------------------------
+  if(length(unique(datos_temp[[nombre_var]])) > 1){
+    cat("\n--- Scott-Knott ---\n")
+    sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+    print(summary(sk))
+  } else {
+    cat("\nScott-Knott no se puede calcular: variable constante o sin variación.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
