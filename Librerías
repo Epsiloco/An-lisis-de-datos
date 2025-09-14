@@ -7,7 +7,7 @@ paquetes <- c(
   "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
   "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
   "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
-  "RVAideMemoire", "RColorBrewer")
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR")
 
 # Verifica cuáles no están instalados
 no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
