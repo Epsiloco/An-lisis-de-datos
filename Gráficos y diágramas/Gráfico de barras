@@ -8,6 +8,44 @@ ggplot(datos, aes(x = Mes)) +
   scale_y_continuous(name = "Precipitación (mm)") +
   labs(title = "", x = "Mes", y = "Precipitación (mm)") +
   theme_minimal()
+
+# Otra forma:
+
+bh_t<- data.frame(
+  "Uso del suelo" = c("Bosque", "Ganadería", "Matorrales y arbustos", "Granos básicos", "Caña de azúcar", "Palma africana"),
+  "Porcentaje (%)" = c(22.45, 29.12, 21.20, 9.33, 6.21, 2.81))
+
+bmh_t<- data.frame(
+  "Uso del suelo" = c("Bosque", "Matorrales y arbustos", "Ganadería", "Granos básicos", "Café", "Caña de azúcar", "Palma africana"),
+  "Porcentaje (%)" = c(36.29, 17.31, 14.26, 8.91, 7.62, 2.48, 0.26))
+attach(c(bh_t, bmh_t))
+
+
+colnames(bh_t)
+
+ggplot(bh_t, aes(x = reorder(Uso.del.suelo, -Porcentaje....))) +  # ← el "-" hace que sea de mayor a menor
+  geom_bar(aes(y = Porcentaje....), 
+           stat = "identity", 
+           fill = "white",
+           color = "black",
+           alpha = 0.4) +
+  geom_text(aes(y = Porcentaje...., label = Porcentaje....),
+            vjust = -0.5, 
+            size = 4, 
+            color = "black") +
+  labs(
+    title = "",
+    x = "Uso del suelo",
+    y = "%"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 12, angle = 45, hjust = 1), # etiquetas eje X
+    axis.text.y = element_text(size = 12),                        # etiquetas eje Y
+    axis.title.x = element_text(size = 14, face = "bold"),        # título eje X
+    axis.title.y = element_text(size = 14, face = "bold")         # título eje Y
+  )
+
 ##################################---Gráfico de barras con los datos ordenados de forma ascendente
 
 view(datos)
