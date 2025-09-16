@@ -1674,6 +1674,39 @@ ggplot(datos, aes(x=Tratamiento, y=TCH, fill=Tratamiento)) +
   labs(title="Boxplot de TCH por Tratamiento") +
   theme_minimal()
 
+
+
+#--------------------------------------------------------------
+########---Analisis para todas las variables de respuesta
+
+tratamiento <- "Tratamiento"
+respuestas <- c("TCH", "Brix", "Pol", "Pureza", "Jugo", "Fibra", "Humedad", "Rendimiento")
+
+# Lista para guardar resultados de los modelos
+modelos <- list()
+
+for (resp in respuestas) {
+  
+  cat("\n============================================\n")
+  cat("Analizando variable:", resp, "\n")
+  cat("============================================\n")
+  
+  # Crear fórmula para el modelo
+  formula_mixta <- as.formula(paste(resp, "~", tratamiento, "+ (1 | Replica)"))
+  
+  # Ajustar modelo mixto
+  modelo_mixto <- lmer(formula_mixta, data = datos, REML = TRUE)
+  
+  # Mostrar resumen y ANOVA
+  print(summary(modelo_mixto))
+  print(anova(modelo_mixto))
+  
+  # Guardar el modelo en la lista
+  modelos[[resp]] <- modelo_mixto
+}
+
+
+
 ###################################################################################################
 ###################-----MLG y MLGM
 
@@ -1730,3 +1763,5 @@ ggplot(medias_ci, aes_string(x=tratamiento, y="emmean", fill=tratamiento)) +
   labs(x=tratamiento, y=paste("Media ajustada de", vr),
        title=paste("Medias ajustadas -", vr)) +
   theme_minimal()
+
+
