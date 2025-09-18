@@ -1,0 +1,61 @@
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+# Dataset
+datos <- data.frame(
+  Variable = paste("P", 1:10, sep=""),
+  Influencia = c(18, 16, 21, 20, 16, 16, 12, 19, 16, 23),
+  Dependencia = c(19, 16, 18, 17, 18, 16, 14, 18, 18, 23)
+)
+
+# Calcular promedios
+x_prom <- mean(datos$Influencia)
+y_prom <- mean(datos$Dependencia)
+
+# Clasificar por cuadrante según la matriz de Vester
+datos <- datos %>%
+  mutate(
+    Cuadrante = case_when(
+      Influencia >= x_prom & Dependencia >= y_prom ~ "Clave",
+      Influencia >= x_prom & Dependencia < y_prom  ~ "Potencial",
+      Influencia < x_prom  & Dependencia >= y_prom ~ "Dependiente",
+      TRUE ~ "Marginal"
+    )
+  )
+
+# Gráfico con colores profesionales y visibles
+grafico <- ggplot(datos, aes(x = Influencia, y = Dependencia, label = Variable, color = Cuadrante)) +
+  geom_point(size = 5) +
+  geom_text_repel(size = 5, fontface = "bold", color = "black") +
+  geom_vline(xintercept = x_prom, linetype = "dashed", color = "grey50", linewidth = 1) +
+  geom_hline(yintercept = y_prom, linetype = "dashed", color = "grey50", linewidth = 1) +
+  scale_color_manual(
+    values = c(
+      "Clave" = "#E63946",      # Rojo intenso
+      "Potencial" = "#457B9D",  # Azul medio
+      "Dependiente" = "#2A9D8F",# Verde bosque
+      "Marginal" = "#6C757D"    # Gris medio
+    )
+  ) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "",
+    x = "Influencia",
+    y = "Dependencia",
+    color = "Cuadrante"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.major = element_line(color = "grey85"),
+    panel.grid.minor = element_blank(),
+    legend.position = "right"
+  )
+
+# Mostrar gráfico
+print(grafico)
+
+# Guardar automáticamente en alta resolución
+ggsave("Matriz_Vester.png", bg = "white", width = 12, height = 7, units = "in", dpi = 300)
+
+
