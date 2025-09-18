@@ -28,7 +28,7 @@ for (h in hojas) {
   datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
   print(datos_hoja)
 }
-datos <- read_excel(archivo, sheet = 1)
+datos <- read_excel(archivo, sheet = 9)
 
 
 #------------------------------------------------------------------------------------------------
@@ -46,18 +46,11 @@ sapply(datos, class) #Tipo de datos
 variables_numericas <- datos[sapply(datos, is.numeric)]
 round(basicStats(variables_numericas), 2) #Estadística descriptiva
 
-######--EXPERIMENTOS SIMPLES--########################
+############################--EXPERIMENTOS SIMPLES--##############################################
 
-#DCA:
-
-#################Modelo: ANDEVA para cada variable---------------------------------------------------------------------------
-ANDEVA<- aov(Nitrogeno ~ Tratamiento)
-summary(ANDEVA)
-tabla_ANDEVA<-tidy(ANDEVA)
-print(ANDEVA)
-
-
-###############--ANDEVA para todas las variables de respuesta----------------------------------------------------
+# Diseño completamente al azar (DCA):
+#________________________________________________________________________________________________
+  # ANDEVA
 
 tratamiento <- "Tratamiento"
 as.factor(tratamiento)
@@ -75,7 +68,8 @@ for (var in respuestas) {
   print(summary(modelo))
 }
 
-################################# Verificación de supuestos para todas las variables de respuesta---------------------------------
+  # Verificación de los supuestos:
+
 
 for (var in respuestas) {
   
@@ -120,8 +114,7 @@ for (var in respuestas) {
   cat("\n------------------------------------\n")
 }
 
-#########################----Prueba múltiple de medias para todas las variables de respuesta
-
+# Prueba múltiple de medias (PMM):
 
 for (var in respuestas) {
   
@@ -171,7 +164,7 @@ for (var in respuestas) {
 }
 
 
-###############################################--Análisis gráfico--######################################
+# Análisis Gráfico:
 
 for (var in respuestas) {
   
@@ -256,16 +249,11 @@ for (var in respuestas) {
   )
 }
 
-###################################################################################################################
 
-#DBCA:
+#__________________________________________________________________________________________________________
+# DBCA:
+  # ANDEVA
 
-
-#################Modelo: ANDEVA para cada variable---------------------------------------------------------------------------
-ANDEVA<- aov(TCH ~ Tratamiento + Replica)
-summary(ANDEVA)
-
-###############--ANDEVA para todas las variables de respuesta----------------------------------------------------
 colnames(datos)
 tratamiento <- "Tratamiento"
 as.factor(tratamiento)
@@ -284,7 +272,7 @@ for (var in respuestas) {
 }
 
 
-################################# Verificación de supuestos para todas las variables de respuesta---------------------------------
+  # Verificación de supuestos:
 
 for (var in respuestas) {
   
@@ -332,7 +320,7 @@ for (var in respuestas) {
   cat("\n------------------------------------\n")
 }
 
-#########################----Prueba múltiple de medias para todas las variables de respuesta
+# Prueba Múltiple de Medias (PMM):
 
 
 for (var in respuestas) {
@@ -383,7 +371,7 @@ for (var in respuestas) {
 }
 
 
-###############################################--Análisis gráfico--######################################
+# Análisis Gráfico:
 
 for (var in respuestas) {
   
@@ -468,15 +456,11 @@ for (var in respuestas) {
   )
 }
 
-##############################################################################################################
+#_____________________________________________________________________________________________________
 
 # DCL
-#------------------Modelo: ANDEVA para cada variable-------------------------------------
 
-andeva<- aov(TCH ~ Tratamiento + fila + col)
-anova(andeva)
-
-#--------------------------ANDEVA para todas las variables--------------------------------------
+# ANDEVA:
 
 tratamiento <- "Tratamiento"
 respuestas <- c("TCH", "Brix", "Pol", "Pureza", "%_Jugo", "%_Fibra", "%_Humedad","Rendimiento")
@@ -500,8 +484,7 @@ for (var in respuestas) {
 
 ---
   
-  ################################# Verificación de supuestos para todas las variables de respuesta---------------------------------
-
+  # Verificación de supuestos:
 for (var in respuestas) {
   
   # La fórmula del modelo para supuestos también debe incluir ambas variables de bloqueo
@@ -549,7 +532,7 @@ for (var in respuestas) {
 
 ---
   
-  #########################----Prueba múltiple de medias para todas las variables de respuesta
+  # Prueba múltiple de medias (PMM):
   
   for (var in respuestas) {
     
@@ -598,10 +581,9 @@ for (var in respuestas) {
     cat("\n------------------------------------\n")
   }
 
----
-  
-  ###############################################--Análisis gráfico--######################################
 
+  
+  # Análisis Gráfico
 for (var in respuestas) {
   # Resumen con medias e IC95%
   resumen <- datos %>%
@@ -686,24 +668,12 @@ for (var in respuestas) {
 
 
 #--------------------------------------------------------------------------------------------------------------
-###############################--Experimentos factoriales (Arreglo factorial combinatorio)--##################################################################
+###############################--EXPERIMENTOS FACTORIALES EN ARREGLO COMBINATORIO--##################################################################
 
-# DCA:
-#-------------------------Modelo: ANDEVA para una variable-------------------------------------------
-colnames(datos)
-FA<- as.factor(Vinaza)                   #Agregar los factores que sean necesarios
-FB<- as.factor(N_kg)
-VR<- as.vector(Rendimiento)
-y<- as.numeric(VR)
+# DCA
+#__________________________________________________________________________________________
 
-andeva<- aov(y~FA*FB)
-anova(andeva)
-
-
-
-
-
-#----------------------ANDEVA para todas las variables---------------------------------
+#ANDEVA:
 colnames(datos)
 
 factores <- c("Vinaza", "N_kg")
@@ -728,7 +698,7 @@ for (var in respuestas) {
   print(summary(modelo))
 }
 
-####################################### Verificación de supuestos para todas las variables de respuesta
+# Supuestos:
 
 for (var in respuestas) {
   # Modelo para supuestos con todas las interacciones
@@ -784,7 +754,7 @@ for (var in respuestas) {
 
 
 
-###################--Prueba múltiple de medias para todas las variables de respuesta-################
+# PMM:
 
 # Aseguramos que los factores realmente sean factores
 for (f in factores) {
@@ -841,7 +811,7 @@ for (var in respuestas) {
 }
 
 
-########### Análisis gráfico: Gráfico de interacciones--###################################
+#Grafico de interacciones:
 
 for (var in respuestas) {
   cat("\n====================================\n")
@@ -931,10 +901,10 @@ for (var in respuestas) {
     print(p_box_inter)
   }
 }
+#__________________________________________________________________________________________________________
 
-#---------------------------------------------------------------------------
 # DBCA:
-################################--ANDEVA para todas las variables de respuesta----------
+# ANDEVA
 
 factores <- c("Vinaza", "N_kg") 
 for (f in factores) {
@@ -957,7 +927,7 @@ for (var in respuestas) {
 }
 
 
-######################### Verificación de supuestos para todas las variables de respuesta
+#Verificación de supuestos para todas las variables de respuesta
 
 for (var in respuestas) {
   formula <- as.formula(paste0("`", var, "` ~ Replica + ", paste(factores, collapse = "*")))
@@ -992,7 +962,8 @@ for (var in respuestas) {
     }, error = function(e){cat("Error Levene:", e$message, "\n")})
   }
 }
-###########################--Prueba múltiple de medias (Tukey y Scott-Knott)------
+
+#Prueba múltiple de medias (Tukey y Scott-Knott)------
 
 # Convertir factores a factor
 for (f in factores) {
@@ -1042,8 +1013,8 @@ for (var in respuestas) {
 }
 
 
-############################ Análisis gráfico
-# ---------------------------------------------
+# Análisis gráfico
+
 for (var in respuestas) {
   cat("\n====================================\n")
   cat("Gráficos para:", var, "\n")
@@ -1132,16 +1103,7 @@ for (var in respuestas) {
 ###############################--Experimento factorial con arreglo en parcelas divididas--#############################
 
 # DCA:
-#-------------------------Modelo: ANDEVA para una variable-------------------------------------------
-colnames(datos)
-FA<- as.factor(Vinaza)
-FB<- as.factor(N_kg)
-rep<- as.factor(Replica)
-VR<- as.vector(TCH)
-y<- as.numeric(VR)
 
-andeva<- aov(y~FA+FB+Error(rep/FA)+FA:FB)
-summary(andeva)
 #----------------------ANDEVA para todas las variables---------------------------------
 
 factores <- c("Vinaza", "N_kg")
@@ -1561,69 +1523,139 @@ fviz_pca_var(pca,
 #####################################################################################################
 ## Análisis de covarianza (ANCOVA)
 
-# Aseguramos que el factor sea factor y la covariable numérica
-datos$Tratamiento <- as.factor(datos$Tratamiento)
-datos$N_kg <- as.numeric(datos$Jugo, datos$Humedad)
+FA<- as.factor(Tratamiento)
+bloq<- as.factor(Repetición)
+x1<- as.vector(X)
+x<- as.numeric(x1)
+vr<- as.vector(Y)
+y<- as.numeric(vr)
+datos2<- data.frame(FA,x,bloq,y)
+attach(datos2)
+datos2$trat<- 1:12
+datos2<- datos2 %>% relocate(trat, .before = FA)
 
-# Variable de respuesta
-vr <- "TCH"
+n_FA<- nlevels(FA);n_FA
 
-# ---------------- ANCOVA ----------------
-ancova <- aov(as.formula(paste0(vr, " ~ Tratamiento + Jugo + Humedad")), data = datos)
+boxplot(y~FA, col="lightpink", border = "red")
+
+
+medias <- datos2 %>%      
+  group_by(FA) %>%
+  summarise(Media = mean(y, na.rm = TRUE), SE = sd(y, na.rm = TRUE) / sqrt(n())) # Error estándar
+
+print(medias)
+
+#Gráfico para comparar las medias por tratamiento:
+
+ggplot(medias, aes(x = FA, y = Media, fill = FA)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = Media - SE, ymax = Media + SE),  # Intervalos de error
+                width = 0.2, position = position_dodge(0.9)) +
+  labs(title = "Media de var/trat", x = "var", y = "Rend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Rotar etiquetas
+  scale_fill_manual(name = "Trat", values = c("#D9D9D9", 
+                                              "#FF9999", 
+                                              "lightblue", 
+                                              "lightgreen")) 
+
+#ANCOVA: diseño completamente al azar (DCA)
+# Yij = u + Ti + Bj + B(xij-Xm) + Eij
+
+ancova<- aov(y~FA+bloq+x)
 summary(ancova)
+ancova1<- aov(y~FA*x+bloq) #Supuesto de homogeneidad de pendientes
+summary(ancova1)
+print(anova(ancova, ancova1)) #comparación de los dos modelos para comprobar HP
+cv.model(ancova)
 
-# Comparación de modelos para homogeneidad de pendientes
-ancova_int <- aov(as.formula(paste0(vr, " ~ Vinaza * N_kg")), data = datos)
-anova(ancova, ancova_int)  # verificar si interacción significativa
+plot(x,y, col=FA, pch=16, cex=1.2)
 
-# ---------------- Supuestos ----------------
+ggplot(datos2, aes(x=x, y=y, color = FA)) +
+  geom_point() +
+  geom_smooth(method = "lm", se=FALSE) +
+  labs(x="cov", y="VR", title="Gráfico de pendientes", color = "Trat") +
+  theme_minimal() +
+  theme(legend.position = "right") 
 
-# Normalidad
+correlaciones<- datos2 %>%
+  group_by(FA) %>%
+  summarise(coeficiente = cor(x,y, method = "pearson"),
+            p_valor = cor.test(x, y, method = "pearson")$p.value)
+
+print(correlaciones)
+
+#Gráfico para ver si los datos se adaptan a curvas
+
+ggplot(datos2, aes(x=x, y=y, color=FA)) +
+  geom_point() +
+  geom_smooth(method = "loess", se=F) +
+  labs(x = "cov", y = "Resp", title = "Relación no lineal entre X e Y", color="trat")
+
+
+ancova2<- aov(x~FA+bloq) #No diferencias significativas indica HP e independencia de x en cada trat
+summary(ancova2)
+
+#Cálculo de coeficiente angular Beta
+ancova3<- lm(y~FA+bloq+x) #el coeficiente solo se obtiene con lm
+summary(ancova3)
+
+#Media general de la VR
+mean(datos2[,5])
+mean(y)
+
+#Normalidad
 shapiro.test(ancova$residuals)
-qqPlot(ancova$residuals, col="red", pch=16)
+check_normality(ancova)
+plot(ancova,2)
+qqPlot(ancova$residuals, col="red", pch=16, cex=1.2)
 
-# Homocedasticidad
-leveneTest(as.formula(paste0(vr, " ~ Vinaza")), data=datos, center="mean")
+#Homocedasticidad
+leveneTest(y~FA, center="mean")
+bartlett.test(y~FA)
+check_heteroscedasticity(ancova)
 
-# Independencia
+#Independencia
 dwtest(ancova)
 
-# Residuos vs valores ajustados
-plot(ancova$fitted.values, ancova$residuals, col="blue", pch=16,
-     xlab="Valores ajustados", ylab="Residuos", main="Residuos vs Ajustados")
-abline(h=0, col="red", lwd=2)
-
-# ---------------- PMM / Medias ajustadas ----------------
-medias_ajustadas <- emmeans(ancova, ~ Tratamiento)
-print(medias_ajustadas)
-
-# Comparaciones Tukey
-tukey <- pairs(medias_ajustadas, adjust="tukey")
-summary(tukey)
-
-# Scott-Knott
-sk <- SK(ancova, which="Tratamiento", dispersion="se", sig.level=0.05)
+#PMM:
+sk<- SK(ancova, which = "FA", dispersion="se", sig.level = 0.05)
 summary(sk)
 
-# ---------------- Gráficos ----------------
+#Medias ajustadas
+medias_ajustadas<- lsmeans(ancova,~FA)
+print(medias_ajustadas)
 
-# Barras con medias ajustadas y vigotes
-medias_df <- as.data.frame(summary(medias_ajustadas))
-ggplot(medias_df, aes(x=Tratamiento, y=emmean, fill=Tratamiento)) +
-  geom_bar(stat="identity", color="black") +
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.2) +
-  labs(x="Tratamiento", y=paste("Media ajustada de", vr),
-       title=paste("Medias ajustadas de", vr, "por Tratamiento")) +
-  theme_minimal()
+medias_aj2 <- emmeans(ancova, ~ FA); print(medias_aj2) #Otra forma de hacerlo
 
-# Boxplot de la variable de respuesta por factor
-ggplot(datos, aes(x=Tratamiento, y=.data[[vr]], fill=Tratamiento)) +
-  geom_boxplot() +
-  labs(title=paste("Boxplot de", vr, "por Vinaza"), x="Vinaza", y=vr) +
-  theme_minimal()
+
+# Hacer las comparaciones o contrastes de dos en dos (pares)
+tukey<- lsmeans(ancova, pairwise~FA, glhargs=list());tukey
+duncan<- lsmeans(ancova, pairwise~FA, glhargs=list("duncan"));duncan
+
+tukey1<- pairs(medias_ajustadas, adjust = "tukey") #otra forma (con emmeans)
+summary(tukey1)
+
+
+#Prueba de Tukey original
+tukey_cld <- cld(medias_aj2, adjust = "sidak", Letters = letters)
+print(tukey_cld)
+
+
+#Gráfico de barras con medias ajustadas:
+medias_aj3<- as.data.frame(summary(medias_aj2))
+
+ggplot(medias_aj3, aes(x = FA, y = emmean, fill = FA)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.4) +
+  labs(x = "Tratamiento (FA)", y = "Media ajustada de Y", 
+       title = "Medias ajustadas por nivel de FA",
+       fill="Trat") +
+  theme_minimal() +
+  theme(legend.position = "right") 
+
+
 ################################################################################################
-
-
 
 ##--Modelo lineal mixto (MLM)-------------------------------------------
 
@@ -3309,117 +3341,82 @@ ggplot(datos, aes(x=Tratamiento, y=.data[[vr]], fill=Tratamiento)) +
 
 ##--Modelo lineal mixto (MLM)-------------------------------------------
 
-modelo_mixto <- lmer(TCH ~ Tratamiento + (1 | Replica), data = datos, REML = TRUE)
-summary(modelo_mixto)
-anova(modelo_mixto)
-print(modelo_mixto)
-anova(modelo_mixto)
+colnames(datos)
 
-# Verificación de supuestos
-res <- resid(modelo_mixto)
-shapiro.test(res)
+respuestas <- c("TCH", "Pureza", "Pol")  # agregar todas tus variables
 
-# QQ-plot
-qqPlot(res, col="red", pch=16, main="QQ-Plot de residuos")
-leveneTest(res ~ Tratamiento, data = datos, center = "mean")
+#-----------------------------
+# Definir efectos
+#-----------------------------
+efectos_fijos <- c("Tratamiento")
+efectos_aleatorios <- c("(1 | Replica)")
 
-fit <- fitted(modelo_mixto)
-dwtest(lm(res ~ fit))
-
-plot(fit, res, col="blue", pch=16,
-     xlab="Valores ajustados", ylab="Residuos",
-     main="Residuos vs Ajustados")
-abline(h=0, col="red", lwd=2)
-
-
-# PMM por pares
-medias_aj <- emmeans(modelo_mixto, specs = "Tratamiento")
-medias_aj
-
-# Comparaciones múltiples
-pairs(medias_aj, adjust = "tukey")
-
-
-
-medias_df <- as.data.frame(summary(medias_aj))
-
-# Barras con error
-ggplot(medias_df, aes(x=Tratamiento, y=emmean, fill=Tratamiento)) +
-  geom_bar(stat="identity", color="black") +
-  geom_errorbar(aes(ymin=lower.CL, ymax=upper.CL), width=0.2) +
-  labs(x="Tratamiento", y="Media ajustada de TCH", title="Medias ajustadas por tratamiento") +
-  theme_minimal()
-
-# Boxplot de datos originales
-ggplot(datos, aes(x=Tratamiento, y=TCH, fill=Tratamiento)) +
-  geom_boxplot() +
-  labs(title="Boxplot de TCH por Tratamiento") +
-  theme_minimal()
-
-
-#--------------------------------------------------------------
-########---Analisis para todas las variables de respuesta
-
-respuestas <- "TCH"
-
-efectos_fijos <- c("Tratamiento", "Replica") #Cambiar manualmente
-
-efectos_aleatorios<- c("(1 | Poblacion)") #Cambiar manualmente
-
-# Convertir factores (opcional, según tus columnas)
-factores <- c("Tratamiento", "Replica", "Poblacion")
+# Convertir factores
+factores <- c("Tratamiento", "Replica")
 for(f in factores){
   if(f %in% colnames(datos)) datos[[f]] <- factor(datos[[f]])
 }
 
-# Bucle
+#-----------------------------
+# Bucle completo para todas las variables
+#-----------------------------
 for(var in respuestas){
   cat("\n====================================\n")
   cat("Variable:", var, "\n")
   cat("====================================\n")
   
-  # Construir la fórmula completa automáticamente
+  # Construir fórmula
   fixed_str <- paste(efectos_fijos, collapse = " + ")
   random_str <- paste(efectos_aleatorios, collapse = " + ")
-  
   formula <- as.formula(paste0(var, " ~ ", fixed_str, " + ", random_str))
   
   # Ajustar modelo
   modelo <- lmer(formula, data = datos, REML = TRUE)
   
-  # Imprimir resultados
+  # Resultados
   print(summary(modelo))
   print(anova(modelo))
+  
+  #-----------------------------
+  # Verificación de supuestos
+  #-----------------------------
+  
+  # Simulación de residuos DHARMa
+  sim_res <- simulateResiduals(modelo)
+  
+  # Boxplot por factor, evitando problema de longitud
+  trat <- model.frame(modelo)$Tratamiento
+  plotResiduals(sim_res, form = trat)
+  
+  # Gráficos generales de DHARMa
+  plot(sim_res)
+  
+  # Shapiro-Wilk
+  cat("\nShapiro-Wilk de residuos simulados:\n")
+  print(shapiro.test(residuals(sim_res)))
+  
+  # Residuos vs ajustados
+  fitted_vals <- fitted(modelo)
+  resids <- resid(modelo)
+  p1 <- ggplot(data.frame(Fitted=fitted_vals, Resid=resids), aes(x=Fitted, y=Resid)) +
+    geom_point() + 
+    geom_hline(yintercept=0, linetype="dashed", color="red") +
+    labs(title=paste("Residuos vs Ajustados:", var))
+  print(p1)
+  
+  # Residuos vs orden
+  p2 <- ggplot(data.frame(Order=1:length(resids), Resid=resids), aes(x=Order, y=Resid)) +
+    geom_point() + 
+    geom_hline(yintercept=0, linetype="dashed", color="red") +
+    labs(title=paste("Residuos vs Orden:", var))
+  print(p2)
+  
+  # ACF de residuos
+  cat("\nACF de residuos:\n")
+  acf(resids, main=paste("ACF de residuos:", var))
+  
 }
 
-#-----------------------------Supuestos--------------------------------
-# -----------------------
-# DHARMa: residuos simulados
-# -----------------------
-sim_res <- simulateResiduals(modelo)
-plot(sim_res)
-cat("\nShapiro-Wilk de residuos (simulados):\n")
-print(shapiro.test(residuals(sim_res)))
-
-# -----------------------
-# Residuos vs ajustados
-# -----------------------
-fitted_vals <- fitted(modelo)
-resids <- resid(modelo)
-
-p1 <- ggplot(data.frame(Fitted=fitted_vals, Resid=resids), aes(x=Fitted, y=Resid)) +
-  geom_point() + geom_hline(yintercept=0, linetype="dashed", color="red") +
-  labs(title=paste("Residuos vs Ajustados:", var))
-print(p1)
-
-# Residuos vs orden
-p2 <- ggplot(data.frame(Order=1:length(resids), Resid=resids), aes(x=Order, y=Resid)) +
-  geom_point() + geom_hline(yintercept=0, linetype="dashed", color="red") +
-  labs(title=paste("Residuos vs Orden:", var))
-print(p2)
-
-cat("\nACF de residuos:\n")
-print(acf(resids, plot=TRUE))
 
 #--------------------------------------------PMM (Tukey)------------------------------------------
 # Tukey por pares:
@@ -3597,3 +3594,5 @@ ggplot(medias_ci, aes_string(x=tratamiento, y="emmean", fill=tratamiento)) +
   labs(x=tratamiento, y=paste("Media ajustada de", vr),
        title=paste("Medias ajustadas -", vr)) +
   theme_minimal()
+
+
