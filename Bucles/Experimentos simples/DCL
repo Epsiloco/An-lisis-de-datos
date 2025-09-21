@@ -1,1 +1,212 @@
 
+
+
+
+# DCL
+
+# ANDEVA:
+
+tratamiento <- "Tratamiento"
+respuestas <- c("TCH", "Brix", "Pol", "Pureza", "%_Jugo", "%_Fibra", "%_Humedad","Rendimiento")
+filas <- "Fila" 
+columnas <- "Columna" 
+
+
+###############--ANDEVA para todas las variables de respuesta----------------------------------------------------
+colnames(datos)
+
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ Tratamiento + `", filas, "` + `", columnas, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  print(summary(modelo))
+}
+
+---
+  
+  # Verificación de supuestos:
+  for (var in respuestas) {
+    
+    # La fórmula del modelo para supuestos también debe incluir ambas variables de bloqueo
+    formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "` + `", filas, "` + `", columnas, "`"))
+    modelo <- aov(formula, data = datos)
+    
+    cat("\n====================================\n")
+    cat("Variable:", var, "\n")
+    cat("====================================\n")
+    
+    cat("\n--- Verificación de supuestos ---\n")
+    
+    # 1. QQ-plot en pantalla
+    qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+    
+    # 2. Residuos vs Ajustados en pantalla
+    plot(modelo$fitted.values, modelo$residuals,
+         main=paste("Residuos vs Ajustados:", var),
+         xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+    abline(h=0, col="red", lwd=2)
+    
+    # Shapiro-Wilk
+    if(length(unique(modelo$residuals)) > 1){
+      SW <- shapiro.test(modelo$residuals)
+      cat("\nShapiro-Wilk para", var, ":\n")
+      print(SW)
+    } else {
+      cat("\nShapiro-Wilk no se puede calcular: todos los residuos son idénticos.\n")
+    }
+    
+    # Bartlett y Levene
+    if(length(unique(datos[[var]])) > 1){
+      cat("\nPrueba de Bartlett para", var, ":\n")
+      # Estas pruebas de homocedasticidad solo evalúan el efecto del tratamiento
+      print(bartlett.test(as.formula(paste0("`", var, "` ~ `", tratamiento, "`")), data=datos))
+      
+      cat("\nPrueba de Levene para", var, ":\n")
+      print(leveneTest(as.formula(paste0("`", var, "` ~ `", tratamiento, "`")), data=datos, center="median"))
+    } else {
+      cat("Bartlett y Levene no se pueden calcular: variable constante.\n")
+    }
+    
+    cat("\n------------------------------------\n")
+  }
+
+---
+  
+  # Prueba múltiple de medias (PMM):
+  
+  for (var in respuestas) {
+    
+    # Crear un nombre seguro
+    nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+    
+    # Ignorar nombres que queden vacíos
+    if(grepl("^var_[_]*$", nombre_var)){
+      cat("\nVariable", var, "omitida: nombre no válido para análisis.\n")
+      next
+    }
+    
+    # Crear dataframe temporal
+    datos_temp <- datos
+    names(datos_temp)[names(datos_temp) == var] <- nombre_var
+    
+    # La fórmula para las PMM también incluye ambas variables de bloqueo
+    formula <- as.formula(paste0("`", nombre_var, "` ~ `", tratamiento, "` + `", filas, "` + `", columnas, "`"))
+    modelo <- aov(formula, data = datos_temp)
+    
+    cat("\n====================================\n")
+    cat("Variable:", var, "\n")
+    cat("====================================\n")
+    
+    # -------------------------
+    # Tukey HSD
+    # -------------------------
+    if(length(unique(datos_temp[[nombre_var]])) > 1){
+      cat("\n--- Tukey HSD ---\n")
+      HSD.test(modelo, tratamiento, console=TRUE)
+    } else {
+      cat("\nTukey HSD no se puede calcular: variable constante.\n")
+    }
+    
+    # -------------------------
+    # Scott-Knott
+    # -------------------------
+    if(length(unique(datos_temp[[nombre_var]])) > 1){
+      cat("\n--- Scott-Knott ---\n")
+      sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+      print(summary(sk))
+    } else {
+      cat("\nScott-Knott no se puede calcular: variable constante o sin variación.\n")
+    }
+    
+    cat("\n------------------------------------\n")
+  }
+
+
+
+# Análisis Gráfico
+for (var in respuestas) {
+  # Resumen con medias e IC95%
+  resumen <- datos %>%
+    group_by(.data[[tratamiento]]) %>%
+    summarise(
+      media = mean(.data[[var]], na.rm=TRUE),
+      sd = sd(.data[[var]], na.rm=TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df=n-1) * se,
+      IC_sup = media + qt(0.975, df=n-1) * se,
+      .groups="drop"
+    )
+  
+  # Ordenar tratamientos por la media
+  resumen <- resumen %>%
+    arrange(media) %>%
+    mutate(Trat_ordenado = factor(.data[[tratamiento]], levels = .data[[tratamiento]]))
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Paleta sobria
+  colores <- "steelblue"
+  
+  # -------------------------
+  # 1. Boxplot
+  # -------------------------
+  print(
+    ggplot(datos, aes(x=.data[[tratamiento]], y=.data[[var]])) +
+      geom_boxplot(fill="gray70", color="black") +
+      labs(title=paste("Boxplot -", var), y=var, x=tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 2. Medias con vigotes (vertical)
+  # -------------------------
+  print(
+    ggplot(resumen, aes(x=Trat_ordenado, y=media)) +
+      geom_point(size=3, color=colores) +
+      geom_errorbar(aes(ymin=IC_inf, ymax=IC_sup), width=0.2, color="black") +
+      labs(title=paste("Medias con IC95% -", var), y=var, x=tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 3. Gráfico de líneas
+  # -------------------------
+  print(
+    ggplot(resumen, aes(x=Trat_ordenado, y=media, group=1)) +
+      geom_line(size=1, color=colores) +
+      geom_point(size=3, color=colores) +
+      geom_errorbar(aes(ymin=IC_inf, ymax=IC_sup), width=0.2, color="black") +
+      labs(title=paste("Líneas con IC95% -", var), y=var, x=tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 4. Medias con vigotes horizontales
+  # -------------------------
+  print(
+    ggplot(resumen, aes(y=Trat_ordenado, x=media)) +
+      geom_point(size=3, color=colores) +
+      geom_errorbarh(aes(xmin=IC_inf, xmax=IC_sup), height=0.2, color="black") +
+      labs(title=paste("Medias con IC95% (horizontal) -", var), x=var, y=tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 5. Barras con IC95% (ordenadas)
+  # -------------------------
+  print(
+    ggplot(resumen, aes(x=Trat_ordenado, y=media)) +
+      geom_col(fill=colores, color="black") +
+      geom_errorbar(aes(ymin=IC_inf, ymax=IC_sup), width=0.2, color="black") +
+      labs(title=paste("Barras con IC95% -", var), y=var, x=tratamiento) +
+      theme_minimal()
+  )
+}
+
