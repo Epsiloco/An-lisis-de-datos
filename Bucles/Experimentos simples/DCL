@@ -1,16 +1,57 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "missMDA")
 
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
 
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
 
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#-----------------------------------------------------------------------------------------------
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 9)
 
+########################################--ANÁLISIS ESTADÍSTICO--##########################################
+# Análisis exploratorio de datos
+
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+summary(datos)
+colnames(datos)
+sapply(datos, class) #Tipo de datos
+variables_numericas <- datos[sapply(datos, is.numeric)]
+round(basicStats(variables_numericas), 2) #Estadística descriptiva
+
+############################--EXPERIMENTOS SIMPLES--##############################################
 # DCL
-
 # ANDEVA:
 
 tratamiento <- "Tratamiento"
 respuestas <- c("TCH", "Brix", "Pol", "Pureza", "%_Jugo", "%_Fibra", "%_Humedad","Rendimiento")
 filas <- "Fila" 
 columnas <- "Columna" 
-
 
 ###############--ANDEVA para todas las variables de respuesta----------------------------------------------------
 colnames(datos)
@@ -124,7 +165,6 @@ for (var in respuestas) {
     
     cat("\n------------------------------------\n")
   }
-
 
 
 # Análisis Gráfico
