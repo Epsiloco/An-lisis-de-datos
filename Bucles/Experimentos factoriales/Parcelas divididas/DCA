@@ -31,6 +31,21 @@ for (h in hojas) {
 datos <- read_excel(archivo, sheet = 9)
 
 
+########################################--ANÁLISIS ESTADÍSTICO--##########################################
+# Análisis exploratorio de datos
+
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+summary(datos)
+colnames(datos)
+sapply(datos, class) #Tipo de datos
+variables_numericas <- datos[sapply(datos, is.numeric)]
+round(basicStats(variables_numericas), 2) #Estadística descriptiva
+
+
 ###################################################################################### DCA:
 
 #----------------------ANDEVA para todas las variables---------------------------------
