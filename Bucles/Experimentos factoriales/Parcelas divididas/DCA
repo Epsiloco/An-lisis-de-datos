@@ -1,9 +1,37 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "missMDA")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#-----------------------------------------------------------------------------------------------
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 9)
 
 
-
-
-
-############################################################## DCA:
+###################################################################################### DCA:
 
 #----------------------ANDEVA para todas las variables---------------------------------
 
