@@ -1,1 +1,200 @@
+################################################################################################
 
+##--Modelo lineal mixto (MLM)-------------------------------------------
+
+colnames(datos)
+
+respuestas <- c("TCH", "Pureza", "Pol")  # agregar todas tus variables
+
+#-----------------------------
+# Definir efectos
+#-----------------------------
+efectos_fijos <- c("Tratamiento")
+efectos_aleatorios <- c("(1 | Replica)")
+
+# Convertir factores
+factores <- c("Tratamiento", "Replica")
+for(f in factores){
+  if(f %in% colnames(datos)) datos[[f]] <- factor(datos[[f]])
+}
+
+#-----------------------------
+# Bucle completo para todas las variables
+#-----------------------------
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Construir fórmula
+  fixed_str <- paste(efectos_fijos, collapse = " + ")
+  random_str <- paste(efectos_aleatorios, collapse = " + ")
+  formula <- as.formula(paste0(var, " ~ ", fixed_str, " + ", random_str))
+  
+  # Ajustar modelo
+  modelo <- lmer(formula, data = datos, REML = TRUE)
+  
+  # Resultados
+  print(summary(modelo))
+  print(anova(modelo))
+  
+  #-----------------------------
+  # Verificación de supuestos
+  #-----------------------------
+  
+  # Simulación de residuos DHARMa
+  sim_res <- simulateResiduals(modelo)
+  
+  # Boxplot por factor, evitando problema de longitud
+  trat <- model.frame(modelo)$Tratamiento
+  plotResiduals(sim_res, form = trat)
+  
+  # Gráficos generales de DHARMa
+  plot(sim_res)
+  
+  # Shapiro-Wilk
+  cat("\nShapiro-Wilk de residuos simulados:\n")
+  print(shapiro.test(residuals(sim_res)))
+  
+  # Residuos vs ajustados
+  fitted_vals <- fitted(modelo)
+  resids <- resid(modelo)
+  p1 <- ggplot(data.frame(Fitted=fitted_vals, Resid=resids), aes(x=Fitted, y=Resid)) +
+    geom_point() + 
+    geom_hline(yintercept=0, linetype="dashed", color="red") +
+    labs(title=paste("Residuos vs Ajustados:", var))
+  print(p1)
+  
+  # Residuos vs orden
+  p2 <- ggplot(data.frame(Order=1:length(resids), Resid=resids), aes(x=Order, y=Resid)) +
+    geom_point() + 
+    geom_hline(yintercept=0, linetype="dashed", color="red") +
+    labs(title=paste("Residuos vs Orden:", var))
+  print(p2)
+  
+  # ACF de residuos
+  cat("\nACF de residuos:\n")
+  acf(resids, main=paste("ACF de residuos:", var))
+  
+}
+
+
+#--------------------------------------------PMM (Tukey)------------------------------------------
+# Tukey por pares:
+
+cat("\n=== Tukey HSD para efectos fijos ===\n")
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  formula <- as.formula(paste0(var, " ~ ", paste(efectos_fijos, collapse = " + "), " + ", paste(efectos_aleatorios, collapse = " + ")))
+  modelo <- lmer(formula, data = datos, REML = TRUE)
+  
+  # Tukey HSD con glht
+  tukey <- glht(modelo, linfct = mcp(Tratamiento = "Tukey"))
+  print(summary(tukey))
+}
+
+
+# Bucle para letras de Tukey clásico (agrupamiento)
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Ajustar modelo lineal mixto
+  formula <- as.formula(paste0(var, " ~ ", paste(efectos_fijos, collapse = " + "), " + ", paste(efectos_aleatorios, collapse = " + ")))
+  modelo <- lmer(formula, data = datos, REML = TRUE)
+  
+  # Obtener medias estimadas
+  emmeans_var <- emmeans(modelo, ~ Tratamiento)
+  
+  # Agrupar con letras
+  letras <- cld(emmeans_var, Letters = letters, adjust = "tukey")
+  
+  print(letras)
+  
+  # Opcional: gráfico con letras
+  resumen <- as.data.frame(letras)
+  ggplot(resumen, aes(x=Tratamiento, y=emmean, fill=Tratamiento)) +
+    geom_bar(stat="identity") +
+    geom_text(aes(label=.group, y=emmean + 0.05*max(emmean)), vjust=0) +
+    labs(title=paste("Agrupamiento Tukey con letras:", var), y="Media ajustada") +
+    theme_minimal() -> p
+  print(p)
+}
+
+
+# Ordenar de mayor a menor media y alfabéticamente
+resumen <- resumen[order(-resumen$emmean, resumen$Tratamiento), ]
+
+# Asignar letras manualmente
+letras_vec <- letters[1:nrow(resumen)]
+resumen$.group <- toupper(letras_vec)  # A, B, C...
+
+print(resumen)
+
+# Gráfico opcional con letras
+ggplot(resumen, aes(x=reorder(Tratamiento, -emmean), y=emmean, fill=Tratamiento)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=.group, y=emmean + 0.05*max(emmean)), vjust=0) +
+  labs(title=paste("Agrupamiento Tukey con letras:", var), y="Media ajustada") +
+  theme_minimal() -> p
+print(p)}
+
+
+#------------------Gráficos--------------------------------------------------
+# Barras
+for(var in respuestas){
+  ggplot(datos, aes(x=Tratamiento, y=.data[[var]], fill=Tratamiento)) +
+    geom_bar(stat="summary", fun="mean") +
+    labs(title=paste("Gráfico de barras:", var), y=var) +
+    theme_minimal() -> p
+  print(p)
+}
+
+# Barras de error
+for(var in respuestas){
+  resumen <- datos %>%
+    group_by(Tratamiento) %>%
+    summarise(Media=mean(.data[[var]], na.rm=TRUE),
+              SD=sd(.data[[var]], na.rm=TRUE))
+  
+  ggplot(resumen, aes(x=Tratamiento, y=Media, fill=Tratamiento)) +
+    geom_bar(stat="identity") +
+    geom_errorbar(aes(ymin=Media-SD, ymax=Media+SD), width=0.2) +
+    geom_point(aes(y=Media), color="black", size=3) +
+    coord_flip() +  # Acostado
+    labs(title=paste("Gráfico de barras con error:", var), y=var) +
+    theme_minimal() -> p
+  print(p)
+}
+
+
+# Barras de error simples:
+for(var in respuestas){
+  resumen <- datos %>%
+    group_by(Tratamiento) %>%
+    summarise(Media = mean(.data[[var]], na.rm=TRUE),
+              SD = sd(.data[[var]], na.rm=TRUE))
+  
+  ggplot(resumen, aes(x=Tratamiento, y=Media)) +
+    geom_errorbar(aes(ymin=Media-SD, ymax=Media+SD), width=0.4) +  # vigotes
+    geom_point(color="black", size=3) +  # punto central
+    coord_flip() +  # acostado
+    labs(title=paste("Medias con vigotes:", var), y=var) +
+    theme_minimal() -> p
+  print(p)
+}
+
+
+#Histograma
+for(var in respuestas){
+  ggplot(datos, aes(x=.data[[var]])) +
+    geom_histogram(binwidth=diff(range(datos[[var]], na.rm=TRUE))/20,
+                   fill="steelblue", color="black", alpha=0.7) +
+    labs(title=paste("Histograma:", var), x=var, y="Frecuencia") +
+    theme_minimal() -> p
+  print(p)
+}
