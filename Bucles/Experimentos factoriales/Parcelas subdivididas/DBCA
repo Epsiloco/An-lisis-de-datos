@@ -1,1 +1,255 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "missMDA")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#-----------------------------------------------------------------------------------------------
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 1)
+attach(datos)
+colnames(datos)
+
+#####################################--ANDEVA--#####################################################
+# Variables y factores
+factores <- c("Var", "N", "Plant")  # Factores principales
+bloq <- "Bloque"                   # Bloques
+respuestas <- c("Rend", "TCH")      # <- tus variables de respuesta
+alpha <- 0.15
+
+
+# Convertir factores
+for(f in c(factores, bloq)){
+  datos[[f]] <- as.factor(datos[[f]])
+}
+
+
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("ANDEVA (Split-Split Plot) para:", var, "\n")
+  cat("====================================\n")
+  
+  formula_andeva <- paste0("`", var, "` ~ ", 
+                           bloq, " + ", 
+                           paste(factores, collapse="*"), 
+                           " + Error(", bloq, "/", factores[1], "/", factores[2], ")")
+  
+  modelo <- aov(as.formula(formula_andeva), data=datos)
+  print(summary(modelo))
+}
+#####################################--SUPUESTOS--#####################################################
+
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Supuestos para:", var, "\n")
+  cat("====================================\n")
+  
+  formula_sup <- paste0("`", var, "` ~ ", paste(factores, collapse="*"), " + ", bloq, "/", factores[1], "/", factores[2])
+  modelo_sup <- aov(as.formula(formula_sup), data=datos)
+  
+  res <- residuals(modelo_sup)
+  fit <- fitted(modelo_sup)
+  
+  # Normalidad
+  cat("\nShapiro-Wilk:\n"); print(shapiro.test(res))
+  cat("\ncheck_normality():\n"); print(check_normality(modelo_sup))
+  qqPlot(res, main=paste("QQ-plot:", var), col="red", pch=16)
+  
+  # Homocedasticidad
+  for(f in factores){
+    cat("\nLevene Test -", f, ":\n"); print(leveneTest(res ~ datos[[f]]))
+    cat("\nBartlett Test -", f, ":\n"); print(bartlett.test(res ~ datos[[f]]))
+  }
+  cat("\ncheck_heteroscedasticity():\n"); print(check_heteroscedasticity(modelo_sup))
+  
+  # Independencia
+  modelo_lm <- lm(as.formula(paste0("`", var, "` ~ ", paste(factores, collapse="*"))), data=datos)
+  cat("\nDurbin-Watson:\n"); print(dwtest(modelo_lm))
+  
+  # Residuos vs predichos
+  plot(fit, res, col="blue", pch=16, xlab="Ajustados", ylab="Residuos", main=paste("Residuos vs Ajustados:", var))
+  abline(h=0, col="red", lwd=2)
+}
+
+
+###############################--PMM--######################################################
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("PMM para la variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Factores individuales
+  for(f in factores){
+    modelo_f <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    cat("\n--- Tukey HSD para factor:", f, "---\n")
+    HSD.test(modelo_f, f, console=TRUE, group=TRUE, alpha=alpha)
+    
+    cat("\n--- Scott-Knott para factor:", f, "---\n")
+    try({ sk_f <- SK(modelo_f, which=f, dispersion="se", sig.level=alpha); print(summary(sk_f)) })
+  }
+  
+  # Interacciones dobles
+  interacciones_dobles <- combn(factores, 2, simplify=FALSE)
+  for(inter in interacciones_dobles){
+    nombre_inter <- paste(inter, collapse="_")
+    datos[[nombre_inter]] <- interaction(datos[, inter], sep="_")
+    modelo_inter <- aov(as.formula(paste0("`", var, "` ~ ", nombre_inter)), data=datos)
+    cat("\n--- Tukey HSD para interacción:", paste(inter, collapse=":"), "---\n")
+    HSD.test(modelo_inter, nombre_inter, console=TRUE, group=TRUE, alpha=alpha)
+    cat("\n--- Scott-Knott para interacción:", paste(inter, collapse=":"), "---\n")
+    try({ sk_inter <- SK(modelo_inter, which=nombre_inter, dispersion="se", sig.level=alpha); print(summary(sk_inter)) })
+    datos[[nombre_inter]] <- NULL
+  }
+  
+  # Interacción triple
+  datos$FA_FB_FC <- interaction(datos[, factores], sep="_")
+  modelo_inter3 <- aov(as.formula(paste0("`", var, "` ~ FA_FB_FC")), data=datos)
+  cat("\n--- Tukey HSD para interacción triple FA:FB:FC ---\n")
+  HSD.test(modelo_inter3, "FA_FB_FC", console=TRUE, group=TRUE, alpha=alpha)
+  cat("\n--- Scott-Knott para interacción triple FA:FB:FC ---\n")
+  try({ sk_inter3 <- SK(modelo_inter3, which="FA_FB_FC", dispersion="se", sig.level=alpha); print(summary(sk_inter3)) })
+  datos$FA_FB_FC <- NULL
+}
+#####################################--GRAFICOS--#####################################################
+
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Gráficos para la variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Factores individuales
+  for(f in factores){
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()), .groups="drop")
+    
+    # 1. Barras verticales con SE
+    p_bar <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
+      geom_bar(stat="identity", fill="gray70", color="black") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      labs(title=paste("Barras -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_bar)
+    
+    # 2. Boxplot
+    p_box <- ggplot(datos, aes(x=.data[[f]], y=.data[[var]])) +
+      geom_boxplot(fill="lightblue") +
+      labs(title=paste("Boxplot -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_box)
+    
+    # 3. Histograma
+    p_hist <- ggplot(datos, aes(x=.data[[var]])) +
+      geom_histogram(bins=15, fill="steelblue", color="black", alpha=0.7) +
+      labs(title=paste("Histograma -", f, "-", var), x=var, y="Frecuencia") +
+      theme_minimal()
+    print(p_hist)
+    
+    # 4. Vigote horizontal
+    p_vigote_h <- ggplot(resumen, aes(x=media, y=reorder(.data[[f]], media))) +
+      geom_point(size=3, color="blue") +
+      geom_errorbarh(aes(xmin=media-se, xmax=media+se), height=0, color="red", size=1.2) +
+      labs(title=paste("Media ± SE -", f, "-", var),
+           x=var, y=f) +
+      theme_minimal()
+    print(p_vigote_h)
+  }
+  
+  # Interacciones dobles
+  interacciones_dobles <- combn(factores, 2, simplify=FALSE)
+  for(inter in interacciones_dobles){
+    resumen <- datos %>%
+      group_by(across(all_of(inter))) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()), .groups="drop") %>%
+      ungroup() %>%
+      mutate(interaccion = interaction(!!!syms(inter)))
+    
+    # Vigote horizontal de interacción
+    p_vigote_int_h <- ggplot(resumen, aes(x=media, y=reorder(interaccion, media))) +
+      geom_point(size=3, color="darkgreen") +
+      geom_errorbarh(aes(xmin=media-se, xmax=media+se), height=0, color="red", size=1.2) +
+      labs(title=paste("Media ± SE - Interacción", paste(inter, collapse=":"), "-", var),
+           x=var, y="Interacción") +
+      theme_minimal()
+    print(p_vigote_int_h)
+    
+    # Barras verticales de interacción
+    p_bar_int <- ggplot(resumen, aes(x=interaccion, y=media)) +
+      geom_bar(stat="identity", fill="lightcoral", color="black") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      labs(title=paste("Barras interacción -", paste(inter, collapse=":"), "-", var),
+           x="Interacción", y=var) +
+      theme_minimal()
+    print(p_bar_int)
+    
+    # Boxplot de interacción
+    p_box_int <- ggplot(datos, aes(x=interaction(!!!syms(inter)), y=.data[[var]])) +
+      geom_boxplot(fill="lightgreen") +
+      labs(title=paste("Boxplot interacción -", paste(inter, collapse=":"), "-", var),
+           x="Interacción", y=var) +
+      theme_minimal()
+    print(p_box_int)
+  }
+  
+  # Interacción triple
+  resumen <- datos %>%
+    group_by(across(all_of(factores))) %>%
+    summarise(media = mean(.data[[var]], na.rm=TRUE),
+              se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()), .groups="drop") %>%
+    ungroup() %>%
+    mutate(interaccion = interaction(!!!syms(factores)))
+  
+  # Vigote horizontal triple
+  p_vigote_trip_h <- ggplot(resumen, aes(x=media, y=reorder(interaccion, media))) +
+    geom_point(size=3, color="purple") +
+    geom_errorbarh(aes(xmin=media-se, xmax=media+se), height=0, color="red", size=1.2) +
+    labs(title=paste("Media ± SE - Interacción triple -", var),
+         x=var, y="Interacción") +
+    theme_minimal()
+  print(p_vigote_trip_h)
+  
+  # Barras verticales triple
+  p_bar_trip <- ggplot(resumen, aes(x=interaccion, y=media)) +
+    geom_bar(stat="identity", fill="orange", color="black") +
+    geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+    labs(title=paste("Barras interacción triple -", var),
+         x="Interacción", y=var) +
+    theme_minimal()
+  print(p_bar_trip)
+  
+  # Boxplot triple
+  p_box_trip <- ggplot(datos, aes(x=interaction(!!!syms(factores)), y=.data[[var]])) +
+    geom_boxplot(fill="lightpink") +
+    labs(title=paste("Boxplot interacción triple -", var),
+         x="Interacción", y=var) +
+    theme_minimal()
+  print(p_box_trip)
+}
+
+
+
 
