@@ -1,0 +1,46 @@
+##############################################################################################################
+### Análisis de componentes principales (PCA)
+
+library(FactoMineR)
+library(factoextra)
+library(missMDA)
+
+# Seleccionamos solo las variables cuantitativas
+variables <- datos[, respuestas]
+
+# Imputamos los NA usando PCA (elige ncp = número de componentes a estimar, ej: 2)
+imput <- imputePCA(variables, ncp = 2)  
+
+# Extraemos los datos imputados
+variables_imputadas <- imput$completeObs
+
+# Ejecutamos PCA con las variables imputadas
+pca <- PCA(variables_imputadas, scale.unit = TRUE, graph = FALSE)
+
+# -------------------------------
+# Gráfico de individuos
+# -------------------------------
+fviz_pca_ind(pca, 
+             geom.ind = "point",
+             col.ind = datos$Tratamiento,   # variable categórica para colorear
+             palette = "jco",
+             addEllipses = TRUE,
+             legend.title = "Grupo")
+
+# -------------------------------
+# Biplot (individuos + variables)
+# -------------------------------
+fviz_pca_biplot(pca, 
+                col.ind = datos$Tratamiento,
+                palette = "jco",
+                addEllipses = TRUE,
+                label = "var",
+                col.var = "black")
+
+# -------------------------------
+# Biplot
+# -------------------------------
+fviz_pca_var(pca,
+             col.var = "contrib",      # colorea según contribución al eje
+             gradient.cols = c("blue", "blue", "red"),
+             repel = TRUE)             # evita que se sobrepongan etiquetas
