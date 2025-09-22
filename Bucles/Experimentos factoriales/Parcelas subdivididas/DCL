@@ -1,1 +1,231 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "missMDA")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#-----------------------------------------------------------------------------------------------
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 1)
+attach(datos)
+colnames(datos)
+
+#####################################--ANDEVA--#####################################################
+factores <- c("Var", "Fos", "Nitro")  # Factores principales
+filas <- "Fila"                  # Fila del cuadrado latino
+columnas <- "Col"                 # Columna del cuadrado latino
+respuestas <- c("Forraje", "TCH")   # Variables de respuesta
+alpha <- 0.15
+
+# Convertir factores a factor
+for(f in c(factores, filas, columnas)){
+  datos[[f]] <- as.factor(datos[[f]])
+}
+
+#---------------------------- ANDEVA ----------------------------
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("ANDEVA para la variable:", var, "\n")
+  cat("====================================\n")
+  
+  formula_andeva <- paste0("`", var, "` ~ ", 
+                           filas, " + ", columnas, " + ",
+                           paste(factores, collapse="*"),
+                           " + Error(interaction(", filas, ",", columnas, ")/", factores[2], ")")
+  
+  modelo <- aov(as.formula(formula_andeva), data = datos)
+  print(summary(modelo))
+}
+
+#---------------------------- SUPUESTOS ----------------------------
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Verificación de supuestos para la variable:", var, "\n")
+  cat("====================================\n")
+  
+  formula_sup <- paste0("`", var, "` ~ ", 
+                        filas, " + ", columnas, " + ",
+                        paste(factores, collapse="*"),
+                        " + interaction(", filas, ",", columnas, ")/", factores[2])
+  modelo_sup <- aov(as.formula(formula_sup), data = datos)
+  
+  res <- residuals(modelo_sup)
+  fit <- fitted(modelo_sup)
+  
+  # Normalidad
+  cat("\nShapiro-Wilk:\n")
+  print(shapiro.test(res))
+  
+  qqPlot(res, main = paste("QQ-plot:", var), col="red", pch=16)
+  
+  # Homogeneidad
+  cat("\nLevene Test:\n")
+  for(f in factores){
+    print(leveneTest(res ~ datos[[f]]))
+  }
+  
+  cat("\nBartlett Test:\n")
+  for(f in factores){
+    print(bartlett.test(res ~ datos[[f]]))
+  }
+  
+  # Independencia
+  formula_lm <- paste0("`", var, "` ~ ", paste(factores, collapse="*"))
+  modelo_lm <- lm(as.formula(formula_lm), data = datos)
+  cat("\nDurbin-Watson:\n")
+  print(dwtest(modelo_lm))
+  
+  # Residuos vs predichos
+  plot(fit, res, col="blue", pch=16,
+       xlab="Ajustados", ylab="Residuos", 
+       main=paste("Residuos vs Ajustados:", var))
+  abline(h=0, col="red", lwd=2)
+}
+
+#---------------------------- GRAFICOS ----------------------------
+colores_profesionales <- c("gray40", "blue", "lightgreen", "lightblue", "purple", "lightgray")
+
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Gráficos para:", var, "\n")
+  cat("====================================\n")
+  
+  # Factores individuales
+  for(i in seq_along(factores)){
+    f <- factores[i]
+    color_f <- colores_profesionales[i]
+    
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(media=mean(.data[[var]], na.rm=TRUE),
+                se=sd(.data[[var]], na.rm=TRUE)/sqrt(n()), .groups="drop")
+    
+    # Barras verticales
+    p_bar <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
+      geom_bar(stat="identity", fill=color_f, color="black") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2, color="black") +
+      labs(title=paste("Barras -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_bar)
+    
+    # Boxplot
+    p_box <- ggplot(datos, aes(x=.data[[f]], y=.data[[var]])) +
+      geom_boxplot(fill=color_f, color="black") +
+      labs(title=paste("Boxplot -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_box)
+    
+    # Histograma
+    p_hist <- ggplot(datos, aes(x=.data[[var]])) +
+      geom_histogram(bins=15, fill=color_f, color="black", alpha=0.7) +
+      labs(title=paste("Histograma -", f, "-", var), x=var, y="Frecuencia") +
+      theme_minimal()
+    print(p_hist)
+    
+    # Vigote horizontal
+    p_vigote_h <- ggplot(resumen, aes(x=media, y=reorder(.data[[f]], media))) +
+      geom_point(size=3, color=color_f) +
+      geom_errorbarh(aes(xmin=media-se, xmax=media+se), height=0, color="black", size=1.2) +
+      labs(title=paste("Media ± SE -", f, "-", var), x=var, y=f) +
+      theme_minimal()
+    print(p_vigote_h)
+  }
+  
+  # Interacciones dobles y triple (igual que en bloque al azar)
+  interacciones_dobles <- combn(factores, 2, simplify=FALSE)
+  for(i in seq_along(interacciones_dobles)){
+    inter <- interacciones_dobles[[i]]
+    color_int <- colores_profesionales[i+3]
+    
+    resumen <- datos %>%
+      group_by(across(all_of(inter))) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()), .groups="drop") %>%
+      ungroup() %>%
+      mutate(interaccion = interaction(!!!syms(inter)))
+    
+    # Vigote horizontal
+    p_vigote_int_h <- ggplot(resumen, aes(x=media, y=reorder(interaccion, media))) +
+      geom_point(size=3, color=color_int) +
+      geom_errorbarh(aes(xmin=media-se, xmax=media+se), height=0, color="black", size=1.2) +
+      labs(title=paste("Media ± SE - Interacción", paste(inter, collapse=":"), "-", var),
+           x=var, y="Interacción") +
+      theme_minimal()
+    print(p_vigote_int_h)
+    
+    # Barras verticales
+    p_bar_int <- ggplot(resumen, aes(x=interaccion, y=media)) +
+      geom_bar(stat="identity", fill=color_int, color="black") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2, color="black") +
+      labs(title=paste("Barras interacción -", paste(inter, collapse=":"), "-", var),
+           x="Interacción", y=var) +
+      theme_minimal()
+    print(p_bar_int)
+    
+    # Boxplot
+    p_box_int <- ggplot(datos, aes(x=interaction(!!!syms(inter)), y=.data[[var]])) +
+      geom_boxplot(fill=color_int, color="black") +
+      labs(title=paste("Boxplot interacción -", paste(inter, collapse=":"), "-", var),
+           x="Interacción", y=var) +
+      theme_minimal()
+    print(p_box_int)
+  }
+  
+  # Interacción triple
+  color_trip <- colores_profesionales[length(colores_profesionales)]
+  resumen <- datos %>%
+    group_by(across(all_of(factores))) %>%
+    summarise(media = mean(.data[[var]], na.rm=TRUE),
+              se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()), .groups="drop") %>%
+    ungroup() %>%
+    mutate(interaccion = interaction(!!!syms(factores)))
+  
+  # Vigote horizontal
+  p_vigote_trip_h <- ggplot(resumen, aes(x=media, y=reorder(interaccion, media))) +
+    geom_point(size=3, color=color_trip) +
+    geom_errorbarh(aes(xmin=media-se, xmax=media+se), height=0, color="black", size=1.2) +
+    labs(title=paste("Media ± SE - Interacción triple -", var),
+         x=var, y="Interacción") +
+    theme_minimal()
+  print(p_vigote_trip_h)
+  
+  # Barras verticales
+  p_bar_trip <- ggplot(resumen, aes(x=interaccion, y=media)) +
+    geom_bar(stat="identity", fill=color_trip, color="black") +
+    geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2, color="black") +
+    labs(title=paste("Barras interacción triple -", var),
+         x="Interacción", y=var) +
+    theme_minimal()
+  print(p_bar_trip)
+  
+  # Boxplot
+  p_box_trip <- ggplot(datos, aes(x=interaction(!!!syms(factores)), y=.data[[var]])) +
+    geom_boxplot(fill=color_trip, color="black") +
+    labs(title=paste("Boxplot interacción triple -", var),
+         x="Interacción", y=var) +
+    theme_minimal()
+  print(p_box_trip)
+}
 
