@@ -31,3 +31,92 @@ plot(fitted(modelo_mixto), resid(modelo_mixto),
 abline(h = 0, col = "red", lwd=2.5)
 
 leveneTest(resid(modelo_mixto) ~ datos2$trat, center="mean")
+
+
+################################################################################################################################################
+# Otra forma:
+
+
+# Ejemplo
+efectos_fijos <- c("Tratamiento")
+efectos_aleatorios <- c("(1|Replica)")
+
+factores <- c("Tratamiento", "Replica")
+for(f in factores){
+  if(f %in% colnames(datos)) datos[[f]] <- factor(datos[[f]])}
+
+library(lme4)
+
+# Fórmula manual
+formula <- TCH ~ Tratamiento + (1|Replica)
+
+# Ajustar modelo
+modelo <- lmer(formula, data = datos, REML = TRUE)
+
+# Resumen y ANOVA
+summary(modelo)
+anova(modelo)
+
+
+library(DHARMa)
+
+sim_res <- simulateResiduals(modelo)
+plotResiduals(sim_res, form = datos$Tratamiento)  # Residuos por tratamiento
+plot(sim_res)  # Gráficos generales
+
+# Shapiro-Wilk
+shapiro.test(residuals(sim_res))
+
+# Residuos vs ajustados
+library(ggplot2)
+fitted_vals <- fitted(modelo)
+resids <- resid(modelo)
+ggplot(data.frame(Fitted=fitted_vals, Resid=resids), aes(x=Fitted, y=Resid)) +
+  geom_point() +
+  geom_hline(yintercept=0, color="red", linetype="dashed") +
+  labs(title="Residuos vs Ajustados")
+
+
+library(emmeans)
+library(multcomp)
+
+# Medias ajustadas
+emmeans_var <- emmeans(modelo, ~ Tratamiento)
+
+# Comparaciones Tukey
+tukey <- glht(modelo, linfct = mcp(Tratamiento = "Tukey"))
+summary(tukey)
+
+# Agrupamiento con letras
+letras <- cld(emmeans_var, Letters=letters, adjust="tukey")
+print(letras)
+
+
+
+
+resumen <- as.data.frame(letras)
+
+ggplot(resumen, aes(x=Tratamiento, y=emmean, fill=Tratamiento)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=.group, y=emmean + 0.05*max(emmean)), vjust=0) +
+  theme_minimal() +
+  labs(title="Medias ajustadas con letras Tukey", y="Media ajustada")
+
+
+
+ggplot(resumen, aes(x=emmean, y=reorder(Tratamiento, emmean))) +
+  geom_point(size=3) +
+  geom_errorbarh(aes(xmin=emmean-SE, xmax=emmean+SE), height=0, size=1.2) +
+  theme_minimal() +
+  labs(title="Medias ± SE", x="Media", y="Tratamiento")
+
+
+# Boxplot
+ggplot(datos, aes(x=Tratamiento, y=TCH, fill=Tratamiento)) +
+  geom_boxplot() +
+  theme_minimal()
+
+# Histograma
+ggplot(datos, aes(x=TCH)) +
+  geom_histogram(bins=15, fill="steelblue", color="black", alpha=0.7) +
+  theme_minimal()
