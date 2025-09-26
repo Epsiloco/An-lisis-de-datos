@@ -257,3 +257,58 @@ for(var in numericas){
   
   cat("\n=====================================\n\n")
 }
+
+########################### PCA ###########################################################
+
+# Variables cuantitativas
+variables <- datos[, numericas]  # todas las variables numéricas
+
+# PCA escalando las variables
+pca <- PCA(variables, scale.unit = TRUE, graph = FALSE)
+
+# Gráfico de individuos coloreado por tratamiento
+fviz_pca_ind(pca, 
+             geom.ind = "point",
+             col.ind = datos$tratamiento,   # colorear según tratamiento
+             palette = "jco",
+             addEllipses = TRUE,
+             legend.title = "Tratamiento")
+
+# Biplot
+fviz_pca_biplot(pca, 
+                col.ind = datos$tratamiento,
+                palette = "jco",
+                addEllipses = TRUE,
+                label = "var",
+                col.var = "black")
+
+# Gráfico de variables
+fviz_pca_var(pca,
+             col.var = "contrib",        # colorea por contribución al eje
+             gradient.cols = c("blue", "lightblue", "red"),
+             repel = TRUE)               # evita superposición de etiquetas
+
+################### Mapa de calor de correlaciones #########################
+
+corr_matrix <- cor(datos[numericas], use = "complete.obs")
+corrplot(corr_matrix, method = "color", addCoef.col="black", number.cex=0.7,
+         tl.cex=0.8, tl.srt=45)
+
+
+########### Clustering de variables ############################################
+
+dist_var <- dist(t(scale(datos[numericas])))
+hc_var <- hclust(dist_var)
+plot(hc_var, main="Clustering de variables")
+
+############# Modelos multivariados de respuesta multiple (MANOVA) ##############
+
+manova_model <- manova(cbind(humedad_pocentaje, peso_seco_g, peso_humedo_g, 
+                             altura_tallo11, diametro_tallo11, altura_tallo12, 
+                             diametro_tallo12, altura_tallo13, diametro_tallo13,
+                             prom_t_altura_tallo, prom_t_diametro_tallo, 
+                             total_promedio_de_diametro_prom_t, 
+                             total_promedio_de_alt_prom_t, peso_tallo_kg, 
+                             peso_raiz_kg) ~ susp*volumen+replica_y, data = datos)
+
+summary(manova_model, test="Wilks")
