@@ -1,0 +1,259 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 1)
+
+#-----------------------------------------EDA--------------------------------------------------------------------
+str(datos)
+colnames(datos)
+head(datos)
+attach(datos)
+nlevels(Tratamiento)
+colnames(datos)
+view(datos)
+
+
+############################# Limpiar nombres de columnas#############################
+datos <- clean_names(datos)
+# Ver cómo quedaron
+names(datos)
+view(datos)
+
+############################# Convertir variables ###############################
+# Variables de respuesta a numérico
+numericas <- c("humedad_pocentaje", "peso_seco_g", "peso_humedo_g", 
+               "altura_tallo11", "diametro_tallo11", "altura_tallo12", 
+               "diametro_tallo12", "altura_tallo13", "diametro_tallo13", 
+               "prom_t_altura_tallo", "prom_t_diametro_tallo", 
+               "total_promedio_de_diametro_prom_t", 
+               "total_promedio_de_alt_prom_t", "peso_tallo_kg", 
+               "peso_raiz_kg")
+
+for(col in numericas){
+  datos[[col]] <- as.numeric(as.vector(datos[[col]]))
+}
+
+# Verificación rápida
+sapply(datos[numericas], class)
+
+
+# Conversion a factores
+datos$volumen <- as.factor(datos$volumen)
+datos$susp <- as.factor(datos$susp)
+datos$momentos_aplicacion <- as.factor(datos$momentos_aplicacion)
+
+# Verificación
+sapply(datos[c("volumen", "susp", "momentos_aplicacion")], class)
+
+
+
+#######################Identificar datos faltantes#################################
+colSums(is.na(datos))
+datos$peso_seco_g[is.na(datos$peso_seco_g)] <- mean(datos$peso_seco_g, na.rm = TRUE)
+colSums(is.na(datos[numericas]))
+
+# Vector con nombres de las columnas numéricas
+numericas <- c("humedad_pocentaje", "peso_seco_g", "peso_humedo_g", 
+               "altura_tallo11", "diametro_tallo11", "altura_tallo12", 
+               "diametro_tallo12", "altura_tallo13", "diametro_tallo13", 
+               "prom_t_altura_tallo", "prom_t_diametro_tallo", 
+               "total_promedio_de_diametro_prom_t", 
+               "total_promedio_de_alt_prom_t", "peso_tallo_kg", 
+               "peso_raiz_kg")
+
+set.seed(123)  # Para reproducibilidad
+
+
+# Vector de columnas con pocos NAs
+pocas_na <- c("humedad_pocentaje", "peso_seco_g", "peso_humedo_g",
+              "altura_tallo13", "prom_t_altura_tallo", "prom_t_diametro_tallo",
+              "peso_tallo_kg", "peso_raiz_kg", "diametro_tallo13", "total_promedio_de_alt_prom_t", 
+              "total_promedio_de_diametro_prom_t")
+
+for(col in pocas_na){
+  datos[[col]][is.na(datos[[col]])] <- median(datos[[col]], na.rm = TRUE)
+}
+
+# IMPUTACIÓN CON MODELO RANDOM FOREST
+library(randomForest)
+
+# Filas completas para entrenar el modelo
+train_rf <- datos[complete.cases(datos[c("diametro_tallo11", "altura_tallo11", 
+                                         "altura_tallo12", "diametro_tallo12", 
+                                         "peso_tallo_kg")]), ]
+
+# Ajustar modelo Random Forest
+set.seed(123)
+rf_model <- randomForest(diametro_tallo11 ~ altura_tallo11 + altura_tallo12 + diametro_tallo12 + peso_tallo_kg,
+                         data = train_rf, ntree = 500)
+
+# Predecir los NAs
+indices_na <- which(is.na(datos$diametro_tallo11))
+datos$diametro_tallo11[indices_na] <- predict(rf_model, newdata = datos[indices_na, 
+                                                                        c("altura_tallo11", "altura_tallo12", 
+                                                                          "diametro_tallo12", "peso_tallo_kg")])
+
+
+####################### Revisar datos duplicados #############################################
+
+# Verificar duplicados
+sum(duplicated(datos))
+
+# Eliminar duplicados si existen
+datos <- datos[!duplicated(datos), ]
+
+sum(duplicated(datos_limpios))  # cuántas filas duplicadas
+datos_limpios <- datos_limpios[!duplicated(datos_limpios), ]  # eliminarlas
+
+################# Revisar datos atipicos ######################################################
+
+# Función para detectar outliers de una columna
+detectar_outliers <- function(x){
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  which(x < (Q1 - 1.5*IQR) | x > (Q3 + 1.5*IQR))
+}
+outliers_lista <- list()
+
+for(col in numericas){
+  outliers <- detectar_outliers(datos[[col]])
+  if(length(outliers) > 0){
+    outliers_lista[[col]] <- outliers
+  }
+}
+
+outliers_lista
+filas_outliers <- unique(unlist(outliers_lista))
+
+datos_limpios <- datos[-filas_outliers, ] #Eliminar outliers y crear nueva data limpia
+
+cat("Número de filas eliminadas por contener outliers:", length(filas_outliers), "\n")
+cat("Filas eliminadas:", filas_outliers, "\n")
+outliers <- lapply(datos[numericas], detectar_outliers); outliers
+
+outliers_valores <- lapply(names(outliers_lista), function(col){
+  datos[outliers_lista[[col]], col]
+})
+names(outliers_valores) <- names(outliers_lista)
+outliers_valores #Para ver exactamente los valores atípicos 
+
+
+
+
+# Estadísticas ZCore (>3 o <3 es extremo)
+z_scores <- scale(datos[numericas])
+which(abs(z_scores) > 3, arr.ind = TRUE)  # filas y columnas con outliers
+
+# Boxplots
+boxplot(datos$diametro_tallo11, main="Diametro Tallo 11", col="lightblue")
+boxplot(datos[numericas], las=2, col="lightgreen", main="Boxplots de todas las variables numéricas")
+
+# Gráfico de Violin
+datos_largo <- pivot_longer(datos[numericas], cols = everything(), names_to = "variable", values_to = "valor")
+
+ggplot(datos_largo, aes(x=variable, y=valor)) +
+  geom_violin(fill="lightblue") +
+  geom_jitter(width=0.1, alpha=0.3, color="red") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title="Distribución de variables numéricas con posibles outliers")
+
+#Gráfico de densidad y de pares
+pairs(datos[numericas], pch=19, col=rgb(0,0,1,0.5))
+
+ggplot(datos_largo, aes(x = valor)) +
+  geom_density(fill = "lightblue", alpha = 0.5) +
+  facet_wrap(~variable, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Distribución de variables numéricas")
+
+######################## Revisión de consistencia de valores #######################################
+
+lapply(datos_limpios[, c("susp", "volumen", "momentos_aplicacion")], levels) #para factores
+summary(datos_limpios[numericas]) #para numéricas, revisar mínimos y máximos
+
+
+
+
+####################### ANDEVA para arreglo bifactorial combinatorio (DBCA)####################
+anova1<- aov(humedad_pocentaje~volumen*susp*momentos_aplicacion+replica_y, data = datos)
+anova(anova1)
+
+# En bucle:
+
+for(var in numericas){
+  
+  cat("\n=====================================\n")
+  cat("Variable:", var, "\n")
+  
+  # Fórmula y modelo
+  formula_anova <- as.formula(paste(var, "~ volumen*susp*momentos_aplicacion + replica_y"))
+  modelo <- aov(formula_anova, data = datos)
+  
+  # ANOVA
+  print(summary(modelo))
+  
+  # QQ-Plot y Shapiro-Wilk
+  qqPlot(modelo$residuals, col="black", pch=1, cex=1, main=paste("QQ-Plot", var))
+  sw <- shapiro.test(modelo$residuals)
+  print(sw)
+  
+  # Residuales vs predichos
+  par(mar=c(6,6,2,4))
+  plot(modelo$fitted.values, modelo$residuals, col="red", pch=16, cex=1,
+       xlab="Predicted", ylab="Residuals", main=paste("Residuals vs Fitted", var))
+  abline(h=0, col="blue", lwd=3, lty=3)
+  
+  # Levene Test (homocedasticidad)
+  # Factor principal y doble interacción
+  y <- datos[[var]]
+  print(leveneTest(y ~ interaction(datos$volumen, datos$susp), center="mean"))
+  print(leveneTest(y ~ interaction(datos$volumen, datos$momentos_aplicacion), center="mean"))
+  print(leveneTest(y ~ interaction(datos$susp, datos$momentos_aplicacion), center="mean"))
+  
+  # Bartlett Test
+  print(bartlett.test(y ~ interaction(datos$volumen, datos$susp)))
+  
+  # PMM / SNK para cada factor
+  sk_vol <- SNK.test(modelo, "volumen", group=TRUE)
+  print(sk_vol)
+  sk_susp <- SNK.test(modelo, "susp", group=TRUE)
+  print(sk_susp)
+  sk_mom <- SNK.test(modelo, "momentos_aplicacion", group=TRUE)
+  print(sk_mom)
+  
+  # PMM para interacción doble
+  sk_inter <- SNK.test(modelo, c("volumen","susp"), group=TRUE)
+  print(sk_inter)
+  
+  cat("\n=====================================\n\n")
+}
