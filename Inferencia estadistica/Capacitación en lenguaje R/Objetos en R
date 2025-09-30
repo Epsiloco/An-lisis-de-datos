@@ -1,1 +1,36 @@
+##################################--ESTADÍSTICA APLICADA CON LENGUAJE R--################################
+#---------------------------------FUNDAMENTOS DE LENGUAJE R-------------------------------------------
+# Objeto: es la unidad básica del lenguaje R.
+
+a <- 5      # el objeto "a" contiene el valor 5
+b <- 7      # el objeto "b" contiene el valor 7
+c = 3
+d<- 6L #entero
+x <- 1:15
+x
+e<- "manzana"
+f<- "pera"
+frutas<- c(e,f)
+frutas
+
+#Funciones para inspeccionar un objeto:
+
+length(frutas)   # número de elementos
+class(frutas)    # clase del objeto (numeric, character, etc.)
+typeof(frutas)   # tipo de dato
+str(frutas)      # estructura del objeto
+
+valor1<- 25
+valor2<- 100
+suma_raices<- sqrt(25) + sqrt(100)
+suma_raices
+
+# Vectores:
+
+d<-c(5,8,12,3.5,9,1)
+d
+class(d)
+typeof(d)
+str(d)
+mode(d)
 
