@@ -1,0 +1,419 @@
+# Script del Ing. Juan José Santos Pérez
+#####   Análisis Invernadero  #####
+data.peso <- read.csv("Data_integrada.csv",
+sep = ";", header = TRUE, stringsAsFactors = T)
+data.peso$Codigo <- as.character(data.peso$Codigo)
+
+library(readxl)
+data002 <- read_xlsx("Estres_ensayo_Invernadero.xlsx")
+data002$Codigo <- as.character(data002$Codigo)
+
+library(dplyr)
+data_join <- left_join(data.peso, data002, by = "Codigo")
+#View(data_join)
+
+data.peso <- data_join
+
+
+data.peso
+str(data.peso)
+head((data.peso))
+
+plot(data.peso$Peso.Seco..g.~data.peso$Peso.Humedo..g.)
+# 2. Calculate the linear regression model
+modelo_lineal <- lm(data.peso$Peso.Seco..g. ~ data.peso$Peso.Humedo..g.)
+# 3. Add the linear trend line (from the model) to the plot
+abline(modelo_lineal, col = "red", lwd = 2)
+  
+
+library(ggplot2)
+ggplot(data.peso, aes(x = Peso.Humedo..g., y = Peso.Seco..g.)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Relación entre Peso Húmedo y Peso Seco",
+       x = "Peso Húmedo (g)",
+       y = "Peso Seco (g)") +
+  theme_minimal()+
+  facet_wrap(~ factor(Susp))
+
+
+
+#  Preguntas
+
+# 1. hay efecto de covariable altura (todos iniciaron iguales)
+# Prepara3 la presetación
+
+names(data.peso)
+summary(data.peso[,16:23])
+
+# summary por tratamiento
+library(dplyr)
+names(data.peso)
+
+summary.data.peso<- data.peso %>%
+  filter(!Volumen=="30") %>%
+  filter(Tratamiento!="AA Larvas") %>%
+  group_by(Tratamiento,Momentos_Aplicacion, Susp) %>%
+  summarize(n(),
+            media=mean(Altura_Tallo11),
+            min=min(Altura_Tallo12),
+            max=max(Altura_Tallo11),
+            mean_tallos=mean(Tallos))
+
+summary.data.peso
+
+
+####  filtrar solo numericos
+
+data.numeric <- data.peso %>%
+  select(where(is.numeric))
+
+names(data.peso)
+data.fact <- data.peso%>%
+  select(,c(2:10,-6,-7,-8,-9))
+
+
+data_cbin <- cbind(data.fact,data.numeric)
+names(data_cbin)
+
+filtro_data <- data_cbin %>%
+  filter(!Volumen=="30") %>%
+  filter(Tratamiento!="AA Larvas")
+
+
+
+#####
+summary.data.peso<- filtro_data %>%
+  group_by(Tratamiento,Momentos_Aplicacion, Susp) %>%
+  summarize(n(),
+            media=mean(Altura_Tallo11),
+            min=min(Altura_Tallo12),
+            max=max(Altura_Tallo11),
+            mean_tallos=mean(Tallos))
+summary.data.peso
+
+names(filtro_data)
+
+
+######  ACP
+
+names(data.numeric)
+
+library(dplyr)
+library(FactoMineR) # Para calcular el ACP
+library(factoextra) # Para visualizar los resultados del ACP
+
+# 3. Ejecutar el Análisis de Componentes Principales
+#    scale.unit = TRUE (recomendado): estandariza (centra y escala) los datos para que 
+#    todas las variables contribuyan por igual.
+### imputar valores faltantes
+# Imputar valores faltantes (NA) por la media de cada columna
+library(tidyr)
+library(dplyr) # Ya lo tenías cargado, pero lo incluimos por si acaso
+data_imputado <- data.numeric %>%
+  mutate(across(everything(), ~ replace_na(.x, mean(.x, na.rm = TRUE))))
+
+# Nota: Si el paquete 'tidyr' no está cargado, necesitarás usar:
+# mutate(across(everything(), ~ replace(., is.na(.), mean(., na.rm = TRUE))))
+
+# Verificar cuántos NAs quedan (debería ser 0)
+sum(is.na(data_imputado))
+head(data_imputado)
+####################################################
+
+
+
+res.pca <- PCA(data_imputado, graph = FALSE, scale.unit = TRUE) # graph = FALSE previene que se muestre el gráfico inmediatamente
+
+# 4. Resaltar la variable Peso.Humedo..g. en el círculo de correlación
+fviz_pca_var(res.pca,
+             col.var = "contrib", # Colorear por la contribución a los componentes
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE) +
+  geom_text(aes(label = "Peso.Humedo..g."), 
+            x = res.pca$var$coord["Peso.Humedo..g.", 1], # Posición en Componente 1
+            y = res.pca$var$coord["Peso.Humedo..g.", 2], # Posición en Componente 2
+            color = "red", size = 5, fontface = "bold") +
+  labs(title = "ACP: Contribución de Variables con Peso.Humedo..g. resaltado")
+
+################################################################################
+##########################################################################################
+#                                  modelamiento factoria 
+
+library(lattice)
+
+lattice::xyplot(Peso.Seco..g.~Peso.Humedo..g.|Tratamiento, data = filtro_data,
+       main="Peso seco vs Peso humedo por tratamiento",
+       xlab="Peso humedo (g)",
+       ylab="Peso seco (g)",
+       pch=19, col="blue", cex=1.5,
+       panel=function(x,y,...){
+         panel.xyplot(x,y,...)
+         panel.lmline(x,y,col="red",lwd=2)
+         })
+
+# convertir en factor para la interaccion
+
+lattice::xyplot(Peso.Seco..g.~Peso.Humedo..g.|Momentos_Aplicacion , data = filtro_data,
+                main="Peso seco vs Momento de aplicación",
+                xlab="Peso humedo (g)",
+                ylab="Peso seco (g)",
+                pch=19, col="blue", cex=1.5,
+                panel=function(x,y,...){
+                  panel.xyplot(x,y,...)
+                  panel.lmline(x,y,col="red",lwd=2)
+                })
+
+lattice::xyplot(Peso.Seco..g.~Peso.Humedo..g.|Susp  , data = filtro_data,
+                main="Peso seco vs Momento de aplicación",
+                xlab="Peso humedo (g)",
+                ylab="Peso seco (g)",
+                pch=19, col="blue", cex=1.5,
+                panel=function(x,y,...){
+                  panel.xyplot(x,y,...)
+                  panel.lmline(x,y,col="red",lwd=2)
+                })
+
+
+###        Modelado
+
+# Análisis gráfico con lattice
+library(lattice)
+# Gráficos adicionales para explorar los tres factores
+# 1. Por Tratamiento y Susp
+xyplot(Peso.Seco..g. ~ Peso.Humedo..g. | Tratamiento * Susp, data = filtro_data,
+       main = "Peso seco vs Peso húmedo por Tratamiento y Suspensión",
+       xlab = "Peso húmedo (g)",
+       ylab = "Peso seco (g)",
+       pch = 19, col = "blue", cex = 1,
+       panel = function(x, y, ...){
+         panel.xyplot(x, y, ...)
+         panel.lmline(x, y, col = "red", lwd = 1.5)
+       })
+
+# 2. Boxplots para ver distribución por factores
+bwplot(Peso.Seco..g. ~ Tratamiento | Susp, data = filtro_data,
+       main = "Distribución de Peso Seco por Tratamiento y Suspensión",
+       xlab = "Tratamiento",
+       ylab = "Peso seco (g)")
+
+
+
+#                                                                 Modelado ANOVA trifactorial con covariable
+# Modelo completo con interacciones
+m1 <- aov(Peso.Seco..g. ~ Tratamiento * Momentos_Aplicacion  * Susp + Altura, 
+          data = filtro_data)
+
+# Resumen del modelo
+summary(m1)
+
+# Modelo simplificado (sin interacción triple)
+m2 <- aov(Peso.Seco..g. ~ Tratamiento + Momentos_Aplicacion  + Susp + 
+            Tratamiento:Momentos_Aplicacion  + Tratamiento:Susp + 
+            Momentos_Aplicacion :Susp + Altura, 
+          data = filtro_data)
+
+summary(m2)
+
+# Diagnóstico de residuos
+plot(m2, which = 1:4)
+
+# Comparación de modelos
+anova(m1, m2)
+
+
+# Medias marginales y pruebas post-hoc si son significativas
+library(emmeans)
+
+# Si algún factor es significativo, calcular medias ajustadas
+if(any(summary(m2)[[1]]$"Pr(>F)"[1:6] < 0.05)) {
+  # Medias para Tratamiento (si es significativo)
+  emmeans_trat <- emmeans(m2, ~ Tratamiento)
+  plot(emmeans_trat, comparisons = TRUE)
+  
+  # Comparaciones por pares
+  pairs(emmeans_trat)
+}
+
+# Gráfico de interacciones si existen
+if(any(summary(m2)[[1]]$"Pr(>F)"[4:6] < 0.05)) {
+  interaction.plot(filtro_data$Tratamiento, filtro_data$Susp, 
+                   filtro_data$Peso.Seco..g.,
+                   main = "Interacción Tratamiento x Suspensión",
+                   xlab = "Tratamiento", ylab = "Peso Seco Medio (g)")
+
+}
+
+############                                                        Trifactorial con covariable
+
+
+# Modelo con predicciones para gráficos
+modelo_final <- lm(Peso.Seco..g. ~ Tratamiento * Momentos_Aplicacion * Susp + Altura, 
+                   data = filtro_data)
+
+# Crear datos para predicciones
+nuevos_datos <- expand.grid(
+  Tratamiento = unique(filtro_data$Tratamiento),
+  Momentos_Aplicacion = unique(filtro_data$Momentos_Aplicacion),
+  Susp = unique(filtro_data$Susp),
+  Altura = mean(filtro_data$Altura, na.rm = TRUE)
+)
+
+nuevos_datos$Prediccion <- predict(modelo_final, newdata = nuevos_datos)
+
+# Gráfico de efectos principales e interacciones
+xyplot(Prediccion ~ Tratamiento | Susp, data = nuevos_datos,
+       groups = Momentos_Aplicacion,
+       type = "b", pch = 19, lwd = 2,
+       main = "Predicciones del Modelo Trifactorial",
+       xlab = "Tratamiento", ylab = "Peso Seco Predicho (g)",
+       auto.key = list(columns = 3))
+
+
+
+#######################################################################################################
+#####################################################################################################
+# MODELOS QUE CUANTIFICAN ERRORES POR FACTOR
+
+# 1. Modelo con componentes de varianza (usando lme4)
+library(lme4)
+library(lmerTest)
+
+# Modelo de efectos aleatorios para cuantificar varianzas
+modelo_varianzas <- lmer(Peso.Seco..g. ~ Tratamiento +  # Efecto fijo covariable
+                           (1|Altura) + (1|Momentos_Aplicacion) + (1|Susp) +
+                          # (1|Susp:Momentos_Aplicacion) + 
+                           (1|Tratamiento:Susp) +
+                           (1|Momentos_Aplicacion:Susp),
+                         data = filtro_data)
+
+summary(modelo_varianzas)
+# En la salida verás:
+# - Variance components para cada factor
+# - Std.Dev. para cada fuente de error
+
+# Extraer componentes de varianza
+var_components <- VarCorr(modelo_varianzas)
+print(var_components)
+
+# 2. ANOVA con estimación de componentes de varianza
+modelo_var <- aov(Peso.Seco..g. ~ Tratamiento * Momentos_Aplicacion * Susp + Altura + 
+                    Error(Tratamiento/Momentos_Aplicacion/Susp),
+                  data = filtro_data)
+
+summary(modelo_var)
+
+# 3. Modelo con estructura de errores específica
+library(nlme)
+
+modelo_lme <- lme(Peso.Seco..g. ~ Tratamiento,
+                  random = ~1|Altura/Momentos_Aplicacion/Susp,
+                  data = filtro_data)
+
+summary(modelo_lme)
+intervals(modelo_lme)  # Intervalos de confianza para varianzas
+
+# 4. FUNCIÓN PARA CUANTIFICAR ERRORES POR FACTOR
+cuantificar_errores <- function(data) {
+  # Modelo lineal completo
+  modelo <- lm(Peso.Seco..g. ~ Tratamiento * Momentos_Aplicacion * Susp + Altura, 
+               data = data)
+  
+  # ANOVA para obtener cuadrados medios
+  anova_result <- anova(modelo)
+  
+  # Estimación de componentes de varianza
+  MS_trat <- anova_result["Tratamiento", "Mean Sq"]
+  MS_momento <- anova_result["Momentos_Aplicacion", "Mean Sq"] 
+  MS_susp <- anova_result["Susp", "Mean Sq"]
+  MS_error <- anova_result["Residuals", "Mean Sq"]
+  
+  n <- nrow(data)
+  a <- length(unique(data$Tratamiento))
+  b <- length(unique(data$Momentos_Aplicacion))
+  c <- length(unique(data$Susp))
+  
+  # Estimadores de componentes de varianza (simplificado)
+  var_error <- MS_error
+  var_trat <- (MS_trat - MS_error) / (b * c)
+  var_momento <- (MS_momento - MS_error) / (a * c)
+  var_susp <- (MS_susp - MS_error) / (a * b)
+  
+  # Porcentaje de varianza explicada
+  total_var <- max(var_trat, 0) + max(var_momento, 0) + max(var_susp, 0) + var_error
+  
+  resultados <- data.frame(
+    Fuente = c("Tratamiento", "Momento.Aplicacion", "Susp", "Error"),
+    Varianza = c(max(var_trat, 0), max(var_momento, 0), max(var_susp, 0), var_error),
+    Porcentaje = c(max(var_trat, 0)/total_var*100, 
+                   max(var_momento, 0)/total_var*100,
+                   max(var_susp, 0)/total_var*100,
+                   var_error/total_var*100)
+  )
+  
+  return(resultados)
+}
+
+# Aplicar la función
+errores_cuantificados <- cuantificar_errores(filtro_data)
+print(errores_cuantificados)
+
+
+# 5. GRÁFICOS PARA VISUALIZAR COMPONENTES DE ERROR
+
+# Gráfico de componentes de varianza
+library(ggplot2)
+ggplot(errores_cuantificados, aes(x = Fuente, y = Porcentaje, fill = Fuente)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Contribución de cada fuente a la variabilidad total",
+       y = "Porcentaje de varianza (%)", x = "Fuente de variación") +
+  theme_minimal()
+
+
+# 6. ANÁLISIS DE RESIDUOS POR FACTOR
+par(mfrow = c(2, 2))
+
+# Residuos vs cada factor
+plot(factor(filtro_data$Tratamiento), residuals(modelo_varianzas),
+     main = "Residuos vs Tratamiento", xlab = "Tratamiento", ylab = "Residuos")
+
+plot(factor(filtro_data$Momentos_Aplicacion), residuals(modelo_varianzas),
+     main = "Residuos vs Momento Aplicación", xlab = "Momento", ylab = "Residuos")
+
+plot(factor(filtro_data$Susp), residuals(modelo_varianzas),
+     main = "Residuos vs Suspensión", xlab = "Susp", ylab = "Residuos")
+
+# 7. MODELO CON MÁXIMA DESCOMPOSICIÓN DE ERRORES
+modelo_detallado <- lmer(Peso.Seco..g. ~ Altura + 
+                           (1|Tratamiento) + (1|Momentos_Aplicacion) + (1|Susp) +
+                           (1|Tratamiento:Momentos_Aplicacion) +
+                           (1|Tratamiento:Susp) +
+                           (1|Momentos_Aplicacion:Susp) +
+                           (1|Tratamiento:Momentos_Aplicacion:Susp),
+                         data = filtro_data)
+
+# Resumen detallado de varianzas
+summary_detallado <- as.data.frame(VarCorr(modelo_detallado))
+print(summary_detallado)
+
+# 8. TABLA RESUMEN DE ERRORES
+tabla_errores <- summary_detallado %>%
+  select(grp, vcov, sdcor) %>%
+  mutate(Porcentaje = vcov/sum(vcov)*100) %>%
+  rename(Grupo = grp, Varianza = vcov, `Desv.Est` = sdcor, `% Varianza` = Porcentaje)
+
+print(tabla_errores)
+
+# 9. PRUEBAS DE SIGNIFICANCIA PARA COMPONENTES DE VARIANZA
+# Test de razón de verosimilitud para cada fuente de variación
+
+# Modelo sin Tratamiento
+modelo_sin_trat <- lmer(Peso.Seco..g. ~ Altura + 
+                          (1|Momentos_Aplicacion) + (1|Susp),
+                        data = filtro_data)
+
+# Test para Tratamiento
+anova(modelo_sin_trat, modelo_varianzas)
+
+
+
