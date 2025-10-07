@@ -32,104 +32,124 @@ datos <- read_excel(archivo, sheet = 9)
 
 ##############################################################################################################################################
 
-# DBCA:
-# ANDEVA
+# ==========================================
+# ANDEVA TRIFACTORIAL AUTOMATIZADO CON GRAFICOS
+# ==========================================
 
-factores <- c("Vinaza", "N_kg") 
-for (f in factores) {
-  datos[[f]] <- as.factor(datos[[f]])
-}
+# Cargar librerías
+library(dplyr)
+library(ggplot2)
+library(car)
+library(agricolae)   # HSD.test
+library(SK)           # Scott-Knott
+library(car)
+library(performance)
 
+# -----------------------------
+# 1️⃣ Preparación de datos
+# -----------------------------
+
+# Factores reales
+factores <- c("Tratamiento", "Vinaza", "N_kg")
+bloque <- "Replica"
+
+# Variables de respuesta
 respuestas <- c("TCH", "Brix", "Pol", "Pureza", "Jugo", "Fibra", "Humedad","Rendimiento")
 
-for (var in respuestas) {
-  formula_anidada <- paste(factores, collapse = "*")
-  formula <- as.formula(paste0("`", var, "` ~ Replica + ", formula_anidada))  # bloque agregado
+# Convertir factores y respuestas
+for(f in factores) datos[[f]] <- as.factor(datos[[f]])
+datos[[bloque]] <- as.factor(datos[[bloque]])
+
+for(v in respuestas) datos[[v]] <- as.numeric(datos[[v]])
+
+# -----------------------------
+# 2️⃣ ANDEVA trifactorial con bloque
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("📊 ANDEVA trifactorial para:", var, "\n")
+  cat("============================================\n")
   
-  modelo <- aov(formula, data = datos)
+  formula_anidada <- paste(factores, collapse="*")
+  formula <- as.formula(paste0("`", var, "` ~ ", bloque, " + ", formula_anidada))
+  modelo <- aov(formula, data=datos)
   
-  cat("\n====================================\n")
-  cat("ANDEVA para la variable:", var, "\n")
-  cat("====================================\n")
-  
+  # Mostrar ANDEVA
   print(summary(modelo))
-}
-
-
-#Verificación de supuestos para todas las variables de respuesta
-
-for (var in respuestas) {
-  formula <- as.formula(paste0("`", var, "` ~ Replica + ", paste(factores, collapse = "*")))
-  modelo <- aov(formula, data = datos)
   
-  # QQ-plot y Shapiro-Wilk
-  qqPlot(modelo$residuals, main = paste("QQ-plot:", var), col = "red", lwd = 2, pch = 16)
+  # Coeficiente de variación
+  cv <- (sqrt(mean(modelo$residuals^2)) / mean(datos[[var]], na.rm=TRUE))*100
+  cat("Coeficiente de variación (CV%) =", round(cv,2), "\n")
+  
+  # -----------------------------
+  # 3️⃣ Supuestos
+  # -----------------------------
+  
+  # Normalidad de residuos
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
   if(length(unique(modelo$residuals)) > 1){
-    SW <- shapiro.test(modelo$residuals)
+    sw <- shapiro.test(modelo$residuals)
     cat("\nShapiro-Wilk para", var, ":\n")
-    print(SW)
+    print(sw)
   }
   
-  # Residuos vs Ajustados
+  # Residuos vs valores ajustados
   plot(modelo$fitted.values, modelo$residuals,
        main=paste("Residuos vs Ajustados:", var),
        xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
   abline(h=0, col="red", lwd=2)
   
-  # Bartlett y Levene usando interacción de factores de tratamiento
-  formula_interaccion <- as.formula(paste0("`", var, "` ~ interaction(", paste(factores, collapse = ":"), ")"))
-  
+  # Homogeneidad de varianzas (Levene y Bartlett)
+  formula_interaccion <- as.formula(paste0("`", var, "` ~ interaction(", paste(factores, collapse=":"), ")"))
   if(length(unique(datos[[var]])) > 1){
     cat("\nPrueba de Bartlett para", var, ":\n")
-    tryCatch({
-      print(bartlett.test(formula_interaccion, data = datos))
-    }, error = function(e){cat("Error Bartlett:", e$message, "\n")})
+    tryCatch(print(bartlett.test(formula_interaccion, data=datos)),
+             error=function(e) cat("Error Bartlett:", e$message, "\n"))
     
     cat("\nPrueba de Levene para", var, ":\n")
-    tryCatch({
-      print(leveneTest(formula_interaccion, data = datos, center="median"))
-    }, error = function(e){cat("Error Levene:", e$message, "\n")})
+    tryCatch(print(leveneTest(formula_interaccion, data=datos, center="median")),
+             error=function(e) cat("Error Levene:", e$message, "\n"))
   }
+  
+  # Diagnóstico gráfico completo
+  par(mfrow=c(2,2))
+  plot(modelo)
+  par(mfrow=c(1,1))
+  
+  # Verificación con performance
+  performance::check_normality(modelo)
+  performance::check_model(modelo)
 }
 
-#Prueba múltiple de medias (Tukey y Scott-Knott)------
-
-# Convertir factores a factor
-for (f in factores) {
-  datos[[f]] <- as.factor(datos[[f]])
-}
-
-
-for (var in respuestas) {
-  cat("\n====================================\n")
-  cat("Pruebas de medias para la variable:", var, "\n")
-  cat("====================================\n")
+# -----------------------------
+# 4️⃣ Pruebas de medias múltiples
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("Pruebas de medias para:", var, "\n")
+  cat("============================================\n")
   
   # Interacción completa
-  cat("\n--- Interacción completa ---\n")
-  datos$interaccion_completa <- interaction(datos[, factores], sep = "_")
-  modelo_interaccion <- aov(as.formula(paste0("`", var, "` ~ interaccion_completa")), data = datos)
+  datos$interaccion_completa <- interaction(datos[,factores], sep="_")
+  modelo_interaccion <- aov(as.formula(paste0("`", var, "` ~ interaccion_completa")), data=datos)
   
   if(length(unique(datos[[var]])) > 1){
     cat("\nTukey HSD - Interacción completa:\n")
-    HSD.test(modelo_interaccion, "interaccion_completa", console = TRUE)
+    HSD.test(modelo_interaccion, "interaccion_completa", console=TRUE)
     
     cat("\nScott-Knott - Interacción completa:\n")
     try({
       sk <- SK(modelo_interaccion, which="interaccion_completa", dispersion="se", sig.level=0.05)
       print(summary(sk))
     })
-  } else {
-    cat("Pruebas de medias no se pueden calcular: variable constante.\n")
   }
   
   # Factores individuales
-  for (f in factores) {
-    cat("\n--- Factor:", f, "---\n")
-    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data = datos)
+  for(f in factores){
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
     
     cat("\nTukey HSD - Factor", f, ":\n")
-    HSD.test(modelo_factor, f, console = TRUE)
+    HSD.test(modelo_factor, f, console=TRUE)
     
     cat("\nScott-Knott - Factor", f, ":\n")
     try({
@@ -141,36 +161,37 @@ for (var in respuestas) {
   datos$interaccion_completa <- NULL
 }
 
-# Análisis gráfico
-
-for (var in respuestas) {
-  cat("\n====================================\n")
+# -----------------------------
+# 5️⃣ Gráficos por variable y factor
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
   cat("Gráficos para:", var, "\n")
-  cat("====================================\n")
+  cat("============================================\n")
   
-  # Factores individuales
-  for (f in factores) {
-    resumen_factor <- datos %>%
+  # Gráficos por factor individual
+  for(f in factores){
+    resumen <- datos %>%
       group_by(.data[[f]]) %>%
-      summarise(media = mean(.data[[var]], na.rm = TRUE),
-                se = sd(.data[[var]], na.rm = TRUE)/sqrt(n()),
-                .groups = "drop")
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop")
     
-    # Barras con vigotes
-    p_barra <- ggplot(resumen_factor, aes(x = .data[[f]], y = media)) +
+    # Barras con SE
+    p_bar <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
       geom_bar(stat="identity", fill="gray70", color="black") +
       geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
-      labs(title=paste("Barras -", f, "-", var), x=f, y=var) +
+      labs(title=paste("Barras con SE -", f, "-", var), x=f, y=var) +
       theme_minimal()
-    print(p_barra)
+    print(p_bar)
     
-    # Puntos con vigotes
-    p_punto <- ggplot(resumen_factor, aes(x = .data[[f]], y = media)) +
+    # Puntos con SE
+    p_point <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
       geom_point(size=3, color="steelblue") +
       geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
-      labs(title=paste("Puntos -", f, "-", var), x=f, y=var) +
+      labs(title=paste("Puntos con SE -", f, "-", var), x=f, y=var) +
       theme_minimal()
-    print(p_punto)
+    print(p_point)
     
     # Boxplot
     p_box <- ggplot(datos, aes(x=.data[[f]], y=.data[[var]])) +
@@ -180,46 +201,28 @@ for (var in respuestas) {
     print(p_box)
   }
   
-  # Interacción
-  if(length(factores) > 1) {
-    factor1 <- factores[1]
-    factor2 <- factores[2]
+  # Gráficos de interacción (primeros dos factores)
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
     
-    resumen_interaccion <- datos %>%
-      group_by(.data[[factor1]], .data[[factor2]]) %>%
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
       summarise(media = mean(.data[[var]], na.rm=TRUE),
                 se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
                 .groups="drop") %>%
       ungroup() %>%
-      mutate(Interaccion = interaction(.data[[factor1]], .data[[factor2]]))
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]]))
     
-    # Línea de interacción limpia
-    p_lineas <- ggplot(resumen_interaccion, aes(x=.data[[factor1]], y=media, group=.data[[factor2]], color=.data[[factor2]])) +
-      geom_line(size=1.2) +
-      geom_point(size=3) +
-      labs(title=paste("Interacción líneas -", factor1, "x", factor2, "-", var),
-           x=factor1, y=var, color=factor2) +
+    # Línea de interacción
+    p_line <- ggplot(resumen_inter, aes(x=.data[[f1]], y=media, group=.data[[f2]], color=.data[[f2]])) +
+      geom_line(size=1.2) + geom_point(size=3) +
+      labs(title=paste("Interacción líneas -", f1,"x",f2,"-", var), x=f1, y=var, color=f2) +
       theme_minimal()
-    print(p_lineas)
-    
-    # Barras de interacción con vigotes
-    p_barras <- ggplot(resumen_interaccion, aes(x=Interaccion, y=media)) +
-      geom_bar(stat="identity", fill="lightcoral", color="black") +
-      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
-      labs(title=paste("Barras interacción -", var), x="Interacción", y=var) +
-      theme_minimal()
-    print(p_barras)
-    
-    # Puntos de interacción con vigotes
-    p_puntos <- ggplot(resumen_interaccion, aes(x=Interaccion, y=media)) +
-      geom_point(size=3, color="firebrick") +
-      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
-      labs(title=paste("Puntos interacción -", var), x="Interacción", y=var) +
-      theme_minimal()
-    print(p_puntos)
+    print(p_line)
     
     # Boxplot de interacción
-    p_box_inter <- ggplot(datos, aes(x=interaction(.data[[factor1]], .data[[factor2]]), y=.data[[var]])) +
+    p_box_inter <- ggplot(datos, aes(x=interaction(.data[[f1]], .data[[f2]]), y=.data[[var]])) +
       geom_boxplot(fill="lightgreen") +
       labs(title=paste("Boxplot interacción -", var), x="Interacción", y=var) +
       theme_minimal()
