@@ -1,0 +1,491 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 3)
+view(datos)
+attach(datos)
+colnames(datos)
+summary(datos)
+#########################################################################################
+
+# --- Paso 3: Eliminar la repetición más atípica por tratamiento considerando TCH_REL y TCH_T1 ---
+datos_filtrados <- datos %>%
+  group_by(Tratamiento) %>%
+  mutate(
+    media_TCH_REL = mean(TCH_REL, na.rm = TRUE),
+    media_TCH_T1  = mean(TCH_T1,  na.rm = TRUE),
+    # Distancia euclidiana entre cada repetición y la media del tratamiento
+    distancia = sqrt((TCH_REL - media_TCH_REL)^2 + (TCH_T1 - media_TCH_T1)^2)
+  ) %>%
+  arrange(desc(distancia)) %>%  # ordenar por mayor distancia
+  slice(-1) %>%                 # eliminar el valor más atípico
+  ungroup() %>%
+  select(-media_TCH_REL, -media_TCH_T1, -distancia)
+
+# --- Paso 4: Ver resultados ---
+print(datos_filtrados)
+
+# --- Paso 5: Copiar resultados al portapapeles para Excel ---
+write_clip(datos_filtrados)
+
+# Ahora puedes ir a Excel y pegar directamente con Ctrl + V
+view(datos_filtrados)
+
+
+
+datos_filtrados1 <- datos %>%
+  group_by(`F3 Fertilizacion Inorganica`,`F1 Bacterias PSA`, `F2 Sustrato biodiverso`) %>%
+  mutate(
+    media_TCH_REL = mean(TCH_REL, na.rm = TRUE))
+
+datos_filtrados1
+str(datos_filtrados) 
+
+
+library(dplyr)
+
+# F1 Bacterias PSA
+datos_filtrados %>%
+  distinct(`F1 Bacterias PSA`) %>%
+  arrange(`F1 Bacterias PSA`)
+
+# F2 Sustrato biodiverso
+datos_filtrados %>%
+  distinct(`F2 Sustrato biodiverso`) %>%
+  arrange(`F2 Sustrato biodiverso`)
+
+# F3 Fertilizacion Inorganica
+datos_filtrados %>%
+  distinct(`F3 Fertilizacion Inorganica`) %>%
+  arrange(`F3 Fertilizacion Inorganica`)
+
+
+#Promedios:
+
+library(dplyr)
+
+# Por F1 Bacterias PSA
+prom_F1 <- datos_filtrados %>%
+  group_by(`F1 Bacterias PSA`) %>%
+  summarise(
+    Promedio_TCH_REL = mean(TCH_REL, na.rm = TRUE),
+    Promedio_TCH_T1 = mean(TCH_T1, na.rm = TRUE)
+  )
+
+# Por F2 Sustrato biodiverso
+prom_F2 <- datos_filtrados %>%
+  group_by(`F2 Sustrato biodiverso`) %>%
+  summarise(
+    Promedio_TCH_REL = mean(TCH_REL, na.rm = TRUE),
+    Promedio_TCH_T1 = mean(TCH_T1, na.rm = TRUE)
+  )
+
+# Por F3 Fertilizacion Inorganica
+prom_F3 <- datos_filtrados %>%
+  group_by(`F3 Fertilizacion Inorganica`) %>%
+  summarise(
+    Promedio_TCH_REL = mean(TCH_REL, na.rm = TRUE),
+    Promedio_TCH_T1 = mean(TCH_T1, na.rm = TRUE)
+  )
+
+prom_F1
+prom_F2
+prom_F3
+
+
+
+
+
+# Identificar la repetición más atípica considerando TCH_REL y TCH_T1
+datos_atipicos <- datos %>%
+  group_by(Tratamiento) %>%
+  mutate(
+    media_TCH_REL = mean(TCH_REL, na.rm = TRUE),
+    media_TCH_T1  = mean(TCH_T1,  na.rm = TRUE),
+    # Distancia euclidiana respecto a la media del tratamiento
+    distancia = sqrt((TCH_REL - media_TCH_REL)^2 + (TCH_T1 - media_TCH_T1)^2)
+  ) %>%
+  # Filtrar solo la repetición más atípica
+  slice_max(distancia, n = 1) %>%
+  ungroup() %>%
+  select(Tratamiento, Replica, TCH_REL, TCH_T1, distancia)
+
+# Mostrar las repeticiones más atípicas por tratamiento
+print(datos_atipicos)
+
+
+
+####################################################################################
+## Imputación
+
+# Imputar NA en TCH_REL y TCH_T1 con la mediana de cada variable
+datos_filtrados <- datos_filtrados %>%
+  mutate(
+    TCH_REL = ifelse(is.na(TCH_REL), median(TCH_REL, na.rm = TRUE), TCH_REL),
+    TCH_T1  = ifelse(is.na(TCH_T1),  median(TCH_T1, na.rm = TRUE),  TCH_T1)
+  )
+
+view(datos_filtrados)
+write_clip(datos_filtrados)
+
+##############################################################
+
+######### ANDEVA###################################################################
+attach(datos_filtrados)
+library(tidyverse)
+library(agricolae)
+library(car)
+library(lmtest)
+library(ggplot2)
+library(lattice)
+
+# Factores y variables respuesta
+factores <- c("F1 Bacterias PSA", "F2 Sustrato biodiverso", "F3 Fertilizacion Inorganica")
+respuestas <- c("TCH_REL", "TCH_T1")
+
+# Convertir factores y variables numéricas
+datos_filtrados <- datos_filtrados %>%
+  mutate(across(all_of(factores), as.factor)) %>%
+  mutate(across(all_of(respuestas), as.numeric))
+
+# --- Gráficos de interacción ---
+# Para TCH_REL
+nlevels(`F1 Bacterias PSA`); nlevels(`F2 Sustrato biodiverso`); nlevels(`F3 Fertilizacion Inorganica`)
+
+interaction.plot(
+  datos_filtrados$`F1 Bacterias PSA`,
+  datos_filtrados$`F2 Sustrato biodiverso`,
+  datos_filtrados$TCH_REL,
+  col = c("red", "blue"),
+  lty = 1, lwd = 2,
+  trace.label = "Sustrato biodiverso",
+  xlab = "Bacterias PSA",
+  ylab = "TCH_REL",
+  cex = 0.8,
+  main = "Interacción: Bacterias PSA × Sustrato biodiverso"
+)
+
+interaction.plot(
+  datos_filtrados$`F1 Bacterias PSA`,
+  datos_filtrados$`F3 Fertilizacion Inorganica`,
+  datos_filtrados$TCH_REL,
+  col = c("red", "black"),
+  lty = 1, lwd = 2,
+  trace.label = "Fertilización Inorgánica",
+  xlab = "Bacterias PSA",
+  ylab = "TCH_REL",
+  cex = 0.8,
+  main = "Interacción: Bacterias PSA × Fertilización Inorgánica"
+)
+
+
+interaction.plot(
+  datos_filtrados$`F2 Sustrato biodiverso`,
+  datos_filtrados$`F3 Fertilizacion Inorganica`,
+  datos_filtrados$TCH_REL,
+  col = c("red", "black", "blue", "darkgreen"),
+  lty = 1, lwd = 2,
+  trace.label = "Fertilización Inorgánica",
+  xlab = "Sustrato biodiverso",
+  ylab = "TCH_REL",
+  cex = 0.8,
+  main = "Sustrato biodiverso × Fertilización Inorgánica"
+)
+
+
+
+# Gráfico con lattice
+with(datos_filtrados, xyplot(TCH_REL ~ `F1 Bacterias PSA` | `F2 Sustrato biodiverso`,
+                             groups=`F3 Fertilizacion Inorganica`,
+                             type="a", lwd=2, col=c("blue","red")))
+
+
+
+
+
+# Para TCH_T1
+nlevels(`F1 Bacterias PSA`); nlevels(`F2 Sustrato biodiverso`); nlevels(`F3 Fertilizacion Inorganica`)
+
+interaction.plot(
+  datos_filtrados$`F1 Bacterias PSA`,
+  datos_filtrados$`F2 Sustrato biodiverso`,
+  datos_filtrados$TCH_T1,
+  col = c("red", "blue"),
+  lty = 1, lwd = 2,
+  trace.label = "Sustrato biodiverso",
+  xlab = "Bacterias PSA",
+  ylab = "TCH_ABS",
+  cex = 0.8,
+  main = "Interacción: Bacterias PSA × Sustrato biodiverso"
+)
+
+interaction.plot(
+  datos_filtrados$`F1 Bacterias PSA`,
+  datos_filtrados$`F3 Fertilizacion Inorganica`,
+  datos_filtrados$TCH_T1,
+  col = c("red", "black"),
+  lty = 1, lwd = 2,
+  trace.label = "Fertilización Inorgánica",
+  xlab = "Bacterias PSA",
+  ylab = "TCH_ABS",
+  cex = 0.8,
+  main = "Interacción: Bacterias PSA × Fertilización Inorgánica"
+)
+
+
+interaction.plot(
+  datos_filtrados$`F2 Sustrato biodiverso`,
+  datos_filtrados$`F3 Fertilizacion Inorganica`,
+  datos_filtrados$TCH_T1,
+  col = c("red", "black", "blue", "darkgreen"),
+  lty = 1, lwd = 2,
+  trace.label = "Fertilización Inorgánica",
+  xlab = "Sustrato biodiverso",
+  ylab = "TCH_ABS",
+  cex = 0.8,
+  main = "Sustrato biodiverso × Fertilización Inorgánica"
+)
+
+# Gráfico con lattice
+with(datos_filtrados, xyplot(TCH_T1 ~ `F1 Bacterias PSA` | `F2 Sustrato biodiverso`,
+                             groups=`F3 Fertilizacion Inorganica`,
+                             type="a", lwd=2, col=c("blue","red")))
+
+
+
+
+colnames(datos_filtrados)
+# --- F1 Bacterias PSA ---
+# TCH_REL
+medias <- datos_filtrados %>%
+  group_by(`F1 Bacterias PSA`) %>%
+  summarise(Media = mean(TCH_REL, na.rm=TRUE),
+            SE = sd(TCH_REL, na.rm=TRUE)/sqrt(n()))
+
+ggplot(medias, aes(x=`F1 Bacterias PSA`, y=Media, fill=`F1 Bacterias PSA`)) +
+  geom_bar(stat="identity", color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(0.9)) +
+  labs(title="Media de TCH_REL por Bacterias PSA",
+       x="Bacterias PSA", y="TCH_REL") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# TCH_T1
+medias <- datos_filtrados %>%
+  group_by(`F1 Bacterias PSA`) %>%
+  summarise(Media = mean(TCH_T1, na.rm=TRUE),
+            SE = sd(TCH_T1, na.rm=TRUE)/sqrt(n()))
+
+ggplot(medias, aes(x=`F1 Bacterias PSA`, y=Media, fill=`F1 Bacterias PSA`)) +
+  geom_bar(stat="identity", color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(0.9)) +
+  labs(title="Media de TCH_T1 por Bacterias PSA",
+       x="Bacterias PSA", y="TCH_T1") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# --- F2 Sustrato biodiverso ---
+# TCH_REL
+medias <- datos_filtrados %>%
+  group_by(`F2 Sustrato biodiverso`) %>%
+  summarise(Media = mean(TCH_REL, na.rm=TRUE),
+            SE = sd(TCH_REL, na.rm=TRUE)/sqrt(n()))
+
+ggplot(medias, aes(x=`F2 Sustrato biodiverso`, y=Media, fill=`F2 Sustrato biodiverso`)) +
+  geom_bar(stat="identity", color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(0.9)) +
+  labs(title="Media de TCH_REL por Sustrato biodiverso",
+       x="Sustrato biodiverso", y="TCH_REL") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# TCH_T1
+medias <- datos_filtrados %>%
+  group_by(`F2 Sustrato biodiverso`) %>%
+  summarise(Media = mean(TCH_T1, na.rm=TRUE),
+            SE = sd(TCH_T1, na.rm=TRUE)/sqrt(n()))
+
+ggplot(medias, aes(x=`F2 Sustrato biodiverso`, y=Media, fill=`F2 Sustrato biodiverso`)) +
+  geom_bar(stat="identity", color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(0.9)) +
+  labs(title="Media de TCH_T1 por Sustrato biodiverso",
+       x="Sustrato biodiverso", y="TCH_T1") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# --- F3 Fertilizacion Inorganica ---
+# TCH_REL
+medias <- datos_filtrados %>%
+  group_by(`F3 Fertilizacion Inorganica`) %>%
+  summarise(Media = mean(TCH_REL, na.rm=TRUE),
+            SE = sd(TCH_REL, na.rm=TRUE)/sqrt(n()))
+
+ggplot(medias, aes(x=`F3 Fertilizacion Inorganica`, y=Media, fill=`F3 Fertilizacion Inorganica`)) +
+  geom_bar(stat="identity", color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(0.9)) +
+  labs(title="Media de TCH_REL por Fertilización Inorgánica",
+       x="Fertilización Inorgánica", y="TCH_REL") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# TCH_T1
+medias <- datos_filtrados %>%
+  group_by(`F3 Fertilizacion Inorganica`) %>%
+  summarise(Media = mean(TCH_T1, na.rm=TRUE),
+            SE = sd(TCH_T1, na.rm=TRUE)/sqrt(n()))
+
+ggplot(medias, aes(x=`F3 Fertilizacion Inorganica`, y=Media, fill=`F3 Fertilizacion Inorganica`)) +
+  geom_bar(stat="identity", color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(0.9)) +
+  labs(title="Media de TCH_T1 por Fertilización Inorgánica",
+       x="Fertilización Inorgánica", y="TCH_T1") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+###############################################################
+
+# --- ANDEVA (parcelas subdivididas) ---
+andeva <- aov(TCH_REL ~ Replica +
+                `F1 Bacterias PSA` * `F2 Sustrato biodiverso` * `F3 Fertilizacion Inorganica` +
+                Error(Replica / `F1 Bacterias PSA` / `F2 Sustrato biodiverso`),
+              data=datos_filtrados)
+summary(andeva)
+
+
+
+# --- Verificación de supuestos ---
+andeva2 <- aov(TCH_REL ~ Replica +
+                 `F1 Bacterias PSA` * `F2 Sustrato biodiverso` * `F3 Fertilizacion Inorganica`,
+               data=datos_filtrados)
+
+# Normalidad
+shapiro.test(residuals(andeva2))
+plot(andeva2, 1)
+qqPlot(residuals(andeva2), col="red", pch=16, cex=1.2)
+
+# Homocedasticidad
+leveneTest(residuals(andeva2) ~ `F1 Bacterias PSA`, data=datos_filtrados)
+leveneTest(residuals(andeva2) ~ `F2 Sustrato biodiverso`, data=datos_filtrados)
+leveneTest(residuals(andeva2) ~ `F3 Fertilizacion Inorganica`, data=datos_filtrados)
+
+# Independencia
+dwtest(andeva2)
+
+# --- Comparaciones múltiples (Tukey) ---
+tukey_F1 <- HSD.test(andeva2, trt="F1 Bacterias PSA", group=TRUE, console=TRUE)
+tukey_F2 <- HSD.test(andeva2, trt="F2 Sustrato biodiverso", group=TRUE, console=TRUE)
+tukey_F3 <- HSD.test(andeva2, trt="F3 Fertilizacion Inorganica", group=TRUE, console=TRUE)
+
+
+
+
+library(tidyr)
+library(ggplot2)
+
+# Transformar los datos a formato largo
+datos_largos <- datos_filtrados %>%
+  select(`F3 Fertilizacion Inorganica`, TCH_REL, TCH_T1) %>%
+  pivot_longer(cols = c(TCH_REL, TCH_T1),
+               names_to = "Variable",
+               values_to = "Valor")
+
+# Calcular medias y error estándar por nivel de F3 y variable
+medias <- datos_largos %>%
+  group_by(`F3 Fertilizacion Inorganica`, Variable) %>%
+  summarise(Media = mean(Valor, na.rm = TRUE),
+            SE = sd(Valor, na.rm = TRUE)/sqrt(n()), .groups = "drop")
+
+# Gráfico de barras comparando TCH_REL y TCH_T1
+ggplot(medias, aes(x=`F3 Fertilizacion Inorganica`, y=Media, fill=Variable)) +
+  geom_bar(stat="identity", position=position_dodge(width=0.8), color="black", width=0.7) +
+  geom_errorbar(aes(ymin=Media-SE, ymax=Media+SE),
+                width=0.2, position=position_dodge(width=0.8)) +
+  labs(title="Comparación de TCH_REL y TCH_T1 por Fertilización Inorgánica",
+       x="Fertilización Inorgánica", y="Valor") +
+  theme_minimal() +
+  scale_fill_manual(values=c("TCH_REL"="#1f77b4", "TCH_T1"="#ff7f0e")) +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+
+
+
+
+
+
+
+library(dplyr)
+library(tidyr)
+
+# Calcular medias por F3 para TCH_REL y TCH_T1
+cuadro_medias <- datos_filtrados %>%
+  group_by(`F3 Fertilizacion Inorganica`) %>%
+  summarise(
+    Media_TCH_REL = mean(TCH_REL, na.rm = TRUE),
+    Media_TCH_T1  = mean(TCH_T1,  na.rm = TRUE),
+    SE_TCH_REL    = sd(TCH_REL, na.rm = TRUE)/sqrt(n()),
+    SE_TCH_T1     = sd(TCH_T1,  na.rm = TRUE)/sqrt(n())
+  ) %>%
+  arrange(`F3 Fertilizacion Inorganica`)
+
+# Mostrar el cuadro
+print(cuadro_medias)
+
+write_clip(cuadro_medias)
+
+
+
+library(ggplot2)
+
+ggplot(datos_filtrados, aes(x=`F3 Fertilizacion Inorganica`, y=TCH_REL, fill=`F3 Fertilizacion Inorganica`)) +
+  geom_boxplot(outlier.colour = "red", outlier.shape = 16, outlier.size = 2) +
+  labs(title="Distribución de TCH_REL por Fertilización Inorgánica",
+       x="Fertilización Inorgánica",
+       y="TCH_REL") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_fill_brewer(palette="Pastel1")
+
+
+
+
+
+
+
+
+
+
+
