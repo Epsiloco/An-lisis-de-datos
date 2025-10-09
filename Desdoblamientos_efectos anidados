@@ -1,1 +1,173 @@
 
+
+
+
+
+#-------------------------------------Gráficos---------------------------------------------
+
+emmip(m0, f1_bacterias_psa ~ f2_sb | f3_fi,
+      CIs = TRUE) +
+  labs(title = "Interacción triple: Bacterias × SB × FI",
+       x = "Sustrato Biológico (SB)",
+       y = "Media ajustada de TCH_rel",
+       color = "Bacterias PSA") +
+  theme_minimal(base_size = 12)
+
+
+
+
+# Efecto de SB dentro de cada combinación Bacterias × FI
+plot(emm_ABC, comparisons = TRUE) +
+  labs(title = "Efecto de SB dentro de cada combinación de Bacterias × FI",
+       x = "Sustrato Biológico (SB)",
+       y = "Medias ajustadas de TCH_rel") +
+  theme_minimal()
+
+
+
+
+
+cld_ABC <- multcomp::cld(emm_ABC, Letters = letters, adjust = "tukey")
+
+plot(cld_ABC) +
+  labs(title = "Comparaciones múltiples (letras de significancia)",
+       x = "Tratamientos combinados",
+       y = "Media ajustada de TCH_rel") +
+  coord_flip() +
+  theme_minimal()
+
+
+
+
+# Mapa de calor con colores 
+
+emm_df <- as.data.frame(emm_ABC)
+
+ggplot(emm_df, aes(x = f1_bacterias_psa, y = f2_sb, fill = emmean)) +
+  geom_tile(color = "white", size = 0.3) +
+  geom_text(aes(label = round(emmean, 2)), color = "black", size = 3.5) +
+  scale_fill_gradient2(
+    low = "#F44336",      # Rojo intenso → valores bajos
+    mid = "#FFEB3B",      # Amarillo vibrante → valores medios
+    high = "#4CAF50",     # Verde intenso → valores altos
+    midpoint = 0.92       # Punto medio (ajustable según tus datos)
+  ) +
+  facet_wrap(~ f3_fi) +
+  labs(
+    title = "Mapa de calor de medias ajustadas (EMMs)",
+    x = "Bacterias PSA",
+    y = "Sustrato Biológico (SB)",
+    fill = "EMM TCH_rel"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+
+
+#Gráfico de interacción
+
+emm_df <- as.data.frame(emmeans(m0, ~ f1_bacterias_psa * f2_sb * f3_fi))
+
+ggplot(emm_df, aes(x = f3_fi, y = emmean, 
+                   color = f1_bacterias_psa, 
+                   group = f1_bacterias_psa)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  facet_wrap(~ f2_sb) +
+  labs(
+    title = "Interacción entre Fertilización (FI), Bacterias PSA y Sustrato Biológico (SB)",
+    x = "Nivel de Fertilización Inorgánica (FI)",
+    y = "TCH relativo (media ajustada)",
+    color = "Bacterias PSA"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom")
+
+#-------------------------------------Contrastes considerando %N eficiente
+
+library(ggplot2)
+library(emmeans)
+
+# Calculamos los emmeans para todas las combinaciones
+emm <- emmeans(m0, ~ f1_bacterias_psa * f2_sb * f3_fi)
+# Definir contrastes personalizados
+my_contrasts <- list(
+  # Contraste 1: 50%N vs 50%N Efi (Con Bacteria, Con SB)
+  "50%N vs 50%N Efi (Con Bacteria, Con SB)" = 
+    c("f3_fi=50%N, f1_bacterias_psa=Con Bacteria, f2_sb=Con SB" = 1,
+      "f3_fi=50%N Efi, f1_bacterias_psa=Con Bacteria, f2_sb=Con SB" = -1),
+  
+  # Contraste 2: 70%N vs 70%N Efi (Con Bacteria, Con SB)
+  "70%N vs 70%N Efi (Con Bacteria, Con SB)" = 
+    c("f3_fi=70%N, f1_bacterias_psa=Con Bacteria, f2_sb=Con SB" = 1,
+      "f3_fi=70%N Efi, f1_bacterias_psa=Con Bacteria, f2_sb=Con SB" = -1),
+  
+  # Contraste 3: 100%N vs 100%N Efi (Sin Bacteria, Sin SB)
+  "100%N vs 100%N Efi (Sin Bacteria, Sin SB)" = 
+    c("f3_fi=100% N, f1_bacterias_psa=Sin Bacteria, f2_sb=Sin SB" = 1,
+      "f3_fi=100% N Efi, f1_bacterias_psa=Sin Bacteria, f2_sb=Sin SB" = -1)
+)
+
+
+# Aplicar contrastes
+contrasts_results <- contrast(emm, method = my_contrasts, adjust = "tukey")
+
+# Mostrar resultados
+print(contrasts_results)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(emmeans)
+
+# Obtener emmeans
+emm <- emmeans(m0, ~ f1_bacterias_psa * f2_sb * f3_fi)
+
+# 1. Contraste: 50%N vs 50%N Efi (Con Bacteria, Con SB)
+emm_50 <- emmeans(m0, ~ f3_fi, 
+                  at = list(f1_bacterias_psa = "Con Bacteria",
+                            f2_sb = "Con SB",
+                            f3_fi = c("50%N", "50%N Efi")))
+c1 <- pairs(emm_50)
+
+# 2. Contraste: 70%N vs 70%N Efi (Con Bacteria, Con SB)
+emm_70 <- emmeans(m0, ~ f3_fi, 
+                  at = list(f1_bacterias_psa = "Con Bacteria",
+                            f2_sb = "Con SB",
+                            f3_fi = c("70%N", "70%N Efi")))
+c2 <- pairs(emm_70)
+
+# 3. Contraste: 100%N vs 100%N Efi (Sin Bacteria, Sin SB)
+emm_100 <- emmeans(m0, ~ f3_fi, 
+                   at = list(f1_bacterias_psa = "Sin Bacteria",
+                             f2_sb = "Sin SB",
+                             f3_fi = c("100% N", "100% N Efi")))  # ¡OJO al espacio!
+c3 <- pairs(emm_100)
+
+# Combinar todos los contrastes
+contrasts_results <- rbind(c1, c2, c3)
+
+# Etiquetar los contrastes
+contrast_labels <- c(
+  "50%N vs 50%N Efi (Con Bacteria, Con SB)",
+  "70%N vs 70%N Efi (Con Bacteria, Con SB)",
+  "100%N vs 100%N Efi (Sin Bacteria, Sin SB)"
+)
+contrasts_results@grid$contrast <- contrast_labels
+
+# Mostrar resultados
+summary(contrasts_results, infer = TRUE)
+
