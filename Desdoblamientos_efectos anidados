@@ -1,6 +1,135 @@
+rm(list=ls())
+pacman::p_load(readxl,lme4,lmerTest, MASS, DHARMa,car,multcomp,hnp,dplyr,tidyr,
+               ggplot2,extrafont,gridExtra,ggiraphExtra,tinytex,reshape2,ggpubr, 
+               emmeans,lsmeans,multcompView,effects, vegan,tidyverse,knitr,kableExtra, 
+               janitor,rpart,reshape,rpart.plot,caTools,fastDummies,caret,pROC,plotly,GGally,
+               ggiraphExtra,factoextra,FactoMineR,scales) 
+
+df <- read_excel("Consolidado.xlsx", 
+                          sheet = "DataMP") %>% 
+  clean_names() %>% 
+  filter(!(tratamiento%in%c("T2","T11", "T16","T1"
+                            )))
 
 
 
+str(df)
+
+df
+
+# 1) Asegura el orden y los niveles de los factores (ajusta si hace falta)
+datos <- df %>%
+  mutate(
+    F3_FI = factor(f3_fi, levels = c("0% N","50%N","70 %N","70% N")), # deja solo los niveles que existan
+    F1_Bacterias_PSA = factor(f1_bacterias_psa, levels = c("Con Bacteria","Sin Bacteria")),
+    F2_SB = factor(f2_sb, levels = c("Con SB","Sin SB"))
+  )
+
+
+levels(as.factor(df$f3_fi))
+
+
+# 2) Gráfico de interacción en un solo panel
+ggplot(datos,
+       aes(x = F3_FI,
+           y = tch_rel,
+           color = F1_Bacterias_PSA,
+           linetype = F2_SB,
+           group = interaction(F1_Bacterias_PSA, F2_SB))) +
+  stat_summary(fun = mean, geom = "point", position = position_dodge(width = .15), size = 2) +
+  stat_summary(fun = mean, geom = "line", position = position_dodge(width = .15)) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = .1,
+               position = position_dodge(width = .15)) +
+  labs(x = "FI (N%)",
+       y = "TCH relativo",
+       color = "Bacterias PSA",
+       linetype = "SB",
+       title = "Gráfico de interacción: FI × Bacterias × SB") +
+  theme_minimal(base_size = 12)
+
+
+
+ggplot(
+  datos,
+  aes(x = F2_SB,
+      y = tch_rel,  # <--- cambia por tu variable
+      color = F1_Bacterias_PSA,
+      group = F1_Bacterias_PSA)
+) +
+  stat_summary(fun = mean, geom = "point", size = 2,
+               position = position_dodge(width = 0.15)) +
+  stat_summary(fun = mean, geom = "line",
+               position = position_dodge(width = 0.15)) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.1,
+               position = position_dodge(width = 0.15)) +
+  facet_wrap(~ F3_FI) +
+  labs(x = "FI (N%)", y = "Media de la respuesta", color = "Bacterias PSA",
+       title = "Interacción FI × Bacterias PSA (facetado por SB)") +
+  theme_minimal(base_size = 12)
+
+#
+
+
+
+
+
+
+str(df)
+
+
+
+
+# Si usarás tus datos, reemplaza df por tu data.frame (ej. read_csv("mi_archivo.csv"))
+# Asegúrate de convertir a factor: df <- df |> mutate(A=factor(A), B=factor(B), C=factor(C))
+
+
+# ---- 2) Modelo lineal (ANOVA de 3 vías) ----
+# Opción 2.1: Modelo sin bloques
+m0 <- lm(tch_t1 ~ f1_bacterias_psa*f2_sb *f3_fi , data = df)
+
+influenceIndexPlot(m0,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+
+# ---- 4) Medias ajustadas (EMMs) y comparaciones ----
+# 4.1) Si la interacción A:B:C ES significativa, interpreta por simples efectos
+emm_ABC <- emmeans(m0, ~ f2_sb|f1_bacterias_psa|f3_fi)
+
+
+cld(emmeans(m0, ~ f2_sb|f1_bacterias_psa|f3_fi),type="response", 
+    alpha   = 0.15, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+
+# Comparaciones dentro de cada combinación de dos factores
+pairwise_ABC <- contrast(emm_ABC, method = "pairwise", by = c("f1_bacterias_psa","f2_sb"))
+pairwise_ABC
+
+plot(pairwise_ABC)+
+  coord_flip()
+
+
+# 4.2) Si la interacción triple NO es significativa, baja un nivel
+# (ejemplos):
+emm_AB <- emmeans(m0, ~ A*B)
+contrast(emmm <- emm_AB, interaction = "pairwise")
+
+
+# 4.3) Comparaciones por factor dentro de niveles de otros
+# Ej.: efecto de A dentro de cada B:C
+emm_A_in_BC <- emmeans(m0, ~ f2_sb|f1_bacterias_psa*f3_fi)
+summary(contrast(emm_A_in_BC, method = "pairwise"), infer = c(TRUE, TRUE), adjust = "tukey")
+
+plot(emm_A_in_BC)+
+  coord_flip()
+
+# 4.4) Letras (CLD) por celdas A*B*C
+cld_ABC <- multcomp::cld(emm_ABC, Letters = letters, adjust = "tukey")
+cld_ABC
+
+plot(cld_ABC)+
+  coord_flip()
 
 
 #-------------------------------------Gráficos---------------------------------------------
