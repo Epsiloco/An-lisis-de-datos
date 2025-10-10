@@ -1,1 +1,41 @@
+#############################################
+# 🔹 2. CONVERTIR COLUMNAS A FACTOR
+#############################################
 
+# Reemplaza los nombres entre comillas por tus columnas categóricas
+# Ejemplo: Tratamiento, Repetición, Bloque, etc.
+datos <- datos %>%
+  mutate(
+    Tratamiento = as.factor(Tratamiento),
+    Repetición = as.factor(Repetición)
+    # Agrega más columnas si las tienes:
+    # Bloque = as.factor(Bloque)
+  )
+
+#############################################
+# 🔹 3. CONVERTIR VARIABLES DE RESPUESTA A NUMÉRICAS
+#############################################
+
+# Reemplaza los nombres por tus variables numéricas
+# Ejemplo: Rendimiento, Peso_Seco_Tallo, Peso_Seco_Hoja, etc.
+datos <- datos %>%
+  mutate(
+    Rendimiento = as.numeric(Rendimiento),
+    Peso_Seco_Tallo = as.numeric(Peso_Seco_Tallo),
+    Peso_Seco_Hoja = as.numeric(Peso_Seco_Hoja),
+    Peso_Seco_Fruto = as.numeric(Peso_Seco_Fruto)
+  )
+
+#############################################
+# 🔹 4. VERIFICAR LOS CAMBIOS
+#############################################
+
+# Ver la estructura de los datos después de convertir
+str(datos)
+
+# Verificar los niveles de los factores
+levels(datos$Tratamiento)
+levels(datos$Repetición)
+
+# Verificar que las variables de respuesta sean numéricas
+summary(select(datos, Rendimiento, Peso_Seco_Tallo, Peso_Seco_Hoja, Peso_Seco_Fruto))
