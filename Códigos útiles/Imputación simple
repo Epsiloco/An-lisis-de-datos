@@ -1,0 +1,25 @@
+# IMPUTACIÓN CON LA MEDIA
+datos_media <- datos %>%
+  mutate(
+    Rendimiento = ifelse(is.na(Rendimiento), mean(Rendimiento, na.rm = TRUE), Rendimiento),
+    Peso_Seco_Tallo = ifelse(is.na(Peso_Seco_Tallo), mean(Peso_Seco_Tallo, na.rm = TRUE), Peso_Seco_Tallo),
+    Peso_Seco_Hoja = ifelse(is.na(Peso_Seco_Hoja), mean(Peso_Seco_Hoja, na.rm = TRUE), Peso_Seco_Hoja)
+  )
+
+# IMPUTACIÓN CON LA MEDIANA
+datos_mediana <- datos %>%
+  mutate(
+    Rendimiento = ifelse(is.na(Rendimiento), median(Rendimiento, na.rm = TRUE), Rendimiento),
+    Peso_Seco_Tallo = ifelse(is.na(Peso_Seco_Tallo), median(Peso_Seco_Tallo, na.rm = TRUE), Peso_Seco_Tallo),
+    Peso_Seco_Hoja = ifelse(is.na(Peso_Seco_Hoja), median(Peso_Seco_Hoja, na.rm = TRUE), Peso_Seco_Hoja)
+  )
+
+
+#Verificar
+
+colSums(is.na(datos_media))
+colSums(is.na(datos_mediana))
+
+# Comparar los primeros valores imputados
+head(datos_media)
+head(datos_mediana)
