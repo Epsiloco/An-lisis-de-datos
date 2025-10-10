@@ -1,1 +1,106 @@
 
+library(dplyr)
+library(tidyr)
+library(writexl)
+
+# Tratamiento = Factor
+
+#############################################
+# 🔹 2. FILTRAR TRATAMIENTOS
+#############################################
+
+# Filtrar solo algunos tratamientos específicos
+datos_filtrados <- datos %>%
+  filter(Tratamiento %in% c("Azufre 50 kg/ha", "Azufre 100 kg/ha", "Azufre 150 kg/ha"))
+
+# Excluir ciertos tratamientos (por ejemplo, el testigo)
+datos_sin_testigo <- datos %>%
+  filter(!Tratamiento %in% c("Testigo", "Azufre 200 kg/ha"))
+
+# Filtrar tratamientos con texto en común (por ejemplo, “Azufre” y “Fósforo”)
+datos_azufre_fosforo <- datos %>%
+  filter(grepl("Azufre", Tratamiento) & grepl("Fósforo", Tratamiento))
+
+#############################################
+#  3. FILTRAR POR VARIOS FACTORES
+#############################################
+
+# Si tienes columnas separadas (por ejemplo: Azufre, Fósforo, Repetición)
+datos_factores <- datos %>%
+  filter(Azufre %in% c(100, 150), Fosforo %in% c(50, 100))
+
+#############################################
+# 🔹 4. FILTRAR CON VARIAS CONDICIONES
+#############################################
+
+# Ejemplo: solo tratamientos seleccionados con rendimientos > 3000
+datos_condiciones <- datos %>%
+  filter(Tratamiento %in% c("Azufre 100 kg/ha", "Azufre 150 kg/ha"),
+         Rendimiento > 3000)
+
+#############################################
+# 🔹 5. EXCLUIR COLUMNAS QUE NO SE USARÁN
+#############################################
+
+# Eliminar columnas innecesarias (reemplaza con tus nombres)
+datos_limpios <- datos %>%
+  select(-c(Observaciones, Fecha, Investigador))
+
+#############################################
+# 🔹 6. CREAR TABLAS DE DOBLE ENTRADA
+#############################################
+
+# Promedio de una variable según Tratamiento y Repetición
+tabla_doble <- datos %>%
+  group_by(Tratamiento, Repetición) %>%
+  summarise(Promedio_Rendimiento = mean(Rendimiento, na.rm = TRUE))
+
+# Convertir la tabla a formato ancho (opcional)
+tabla_doble_ancha <- tabla_doble %>%
+  pivot_wider(names_from = Repetición, values_from = Promedio_Rendimiento)
+
+#############################################
+# 🔹 7. TABLAS POR FACTOR (TRATAMIENTO O REPETICIÓN)
+#############################################
+
+# Por Tratamiento
+tabla_tratamiento <- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    Promedio_Rendimiento = mean(Rendimiento, na.rm = TRUE),
+    Desviacion = sd(Rendimiento, na.rm = TRUE),
+    Maximo = max(Rendimiento, na.rm = TRUE),
+    Minimo = min(Rendimiento, na.rm = TRUE)
+  )
+
+# Por Repetición
+tabla_repeticion <- datos %>%
+  group_by(Repetición) %>%
+  summarise(
+    Promedio_Rendimiento = mean(Rendimiento, na.rm = TRUE)
+  )
+
+#############################################
+# 🔹 8. TABLA GENERAL (VARIAS VARIABLES DE RESPUESTA)
+#############################################
+
+# Reemplaza con tus variables reales
+tabla_general <- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    Promedio_Rendimiento = mean(Rendimiento, na.rm = TRUE),
+    Promedio_Peso_Seco_Hoja = mean(Peso_Seco_Hoja, na.rm = TRUE),
+    Promedio_Peso_Seco_Tallo = mean(Peso_Seco_Tallo, na.rm = TRUE)
+  )
+
+#############################################
+# 🔹 9. EXPORTAR TABLAS A EXCEL
+#############################################
+
+write_xlsx(tabla_tratamiento, "Tabla_por_tratamiento.xlsx")
+write_xlsx(tabla_doble, "Tabla_doble_entrada.xlsx")
+write_xlsx(tabla_general, "Tabla_general.xlsx")
+
+#############################################
+# ✅ FIN DEL SCRIPT
+#############################################
