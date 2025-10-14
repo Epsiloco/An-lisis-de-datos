@@ -1,0 +1,283 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+
+
+excel_sheets("Pruebas diferenciales chajui ordenado.xlsx")
+datos<- read_excel("Pruebas diferenciales chajui ordenado.xlsx", sheet = 3)
+view(datos)
+names(datos)
+attach(datos)
+tallo<- as.factor(datos$Tipo_Tallo)
+muestreo<- as.factor(datos$Muestreo)
+
+class(c(Brix, Pol, Pureza, Humedad))
+
+head(datos)
+tail(datos)
+
+datos2<- data.frame(tallo, muestreo, Brix, Pol, Pureza, Humedad)
+view(datos2)
+attach(datos2)
+names(datos2)
+
+#--------------------------------------- VARIABILIDAD ENTRE MUESTRAS
+
+
+names(datos2)
+datos2 %>%
+  group_by(muestreo) %>%
+  summarise(
+    mean_Brix = mean(Brix),
+    sd_Brix = sd(Brix),
+    mean_Pol = mean(Pol),
+    mean_Pureza = mean(Pureza),
+    mean_Humedad = mean(Humedad)
+  ) 
+
+datos_media<- datos2 %>%
+  group_by(muestreo) %>%
+  summarise(
+    mean_Brix = mean(Brix),
+    mean_Pol = mean(Pol),
+    mean_Pureza = mean(Pureza),
+    mean_Humedad = mean(Humedad)
+  ) 
+
+datos_media
+
+
+par(mar=c(14,5,4,3), cex=0.8)
+boxplot(Brix ~ muestreo, data = datos2, main = "Brix por número de muestra", las = 2, xlab = "")
+boxplot(Pol ~ muestreo, data = datos2, main = "Pol por número de muestra", las = 2, xlab = "")
+boxplot(Pureza ~ muestreo, data = datos2, main = "Pureza por número de muestra", las = 2, xlab = "")
+boxplot(Humedad ~ muestreo, data = datos2, main = "Humedad por número de muestra", las = 2, xlab = "")
+
+datos2
+
+# Cuadro de media, varianza y CV por muestra
+resumen <- datos2 %>%
+  group_by(muestreo) %>%
+  summarise(
+    mean_Brix = mean(Brix),
+    var_Brix = var(Brix),
+    cv_Brix = (sd(Brix)/mean(Brix))*100,
+    mean_Pol = mean(Pol),
+    var_Pol = var(Pol),
+    cv_Pol = (sd(Pol)/mean(Pol))*100,
+    mean_Pureza = mean(Pureza),
+    var_Pureza = var(Pureza),
+    cv_Pureza = (sd(Pureza)/mean(Pureza))*100,
+    mean_Humedad = mean(Humedad),
+    var_Humedad = var(Humedad),
+    cv_Humedad = (sd(Humedad)/mean(Humedad))*100
+  )
+resumen
+
+
+# Gráfico de barras para todas las variables
+resumen_cv <- datos2 %>%
+  group_by(muestreo) %>%
+  summarise(
+    CV_Brix = (sd(Brix)/mean(Brix))*100,
+    CV_Pol = (sd(Pol)/mean(Pol))*100,
+    CV_Pureza = (sd(Pureza)/mean(Pureza))*100,
+    CV_Humedad = (sd(Humedad)/mean(Humedad))*100
+  ) %>%
+  ungroup()
+# Cuadro de CV por variable
+resumen_cv
+
+resumen_long <- resumen_cv %>%
+  pivot_longer(cols = -muestreo, names_to = "Variable", values_to = "CV")
+
+
+ggplot(resumen_long, aes(x=muestreo, y=CV, fill=Variable)) +
+  geom_bar(stat="identity", position="dodge") +
+  labs(title="Coeficiente de Variación (CV) por Muestra",
+       x="Número de Muestra",
+       y="CV (%)") +
+  theme_minimal() +
+  scale_fill_brewer(palette="Set2")
+
+
+
+# Mapa de calor
+resumen_long$muestreo <- factor(resumen_long$muestreo, levels = paste0("M",1:10))
+
+ggplot(resumen_long, aes(x=Variable, y=muestreo, fill=CV)) +
+  geom_tile(color="white") +
+  scale_fill_gradient(low="white", high="steelblue") +
+  labs(title="Mapa de calor del Coeficiente de Variación (CV)",
+       x="Variable",
+       y="Número de Muestra") +
+  theme_minimal()
+
+  #ANDEVA
+
+names(datos2)
+anova_muestra1<- aov(Brix ~ muestreo, data = datos2)
+summary(anova_muestra1)
+
+anova_muestra2<- aov(Pol ~ muestreo, data = datos2)
+summary(anova_muestra2)
+
+anova_muestra3<- aov(Pureza ~ muestreo, data = datos2)
+summary(anova_muestra3)
+
+anova_muestra4<- aov(Humedad ~ muestreo, data = datos2)
+summary(anova_muestra4)
+
+#Contrastes entre muestras
+TukeyHSD(anova_muestra1); TukeyHSD(anova_muestra2); TukeyHSD(anova_muestra3); TukeyHSD(anova_muestra4)
+
+
+pairwise.t.test(datos2$Brix, datos2$muestreo, p.adjust.method = "bonferroni")
+pairwise.t.test(datos2$Pol, datos2$muestreo, p.adjust.method = "bonferroni")
+pairwise.t.test(datos2$Pureza, datos2$muestreo, p.adjust.method = "bonferroni")
+pairwise.t.test(datos2$Humedad, datos2$muestreo, p.adjust.method = "bonferroni")
+
+#----------------------------VARIABILIDAD ENTRE TIPOS DE TALLO
+
+
+names(datos2)
+datos2 %>%
+  group_by(tallo) %>%
+  summarise(
+    mean_Brix = mean(Brix),
+    sd_Brix = sd(Brix),
+    mean_Pol = mean(Pol),
+    mean_Pureza = mean(Pureza),
+    mean_Humedad = mean(Humedad)
+  ) 
+
+par(mar=c(14,5,4,3), cex=0.8)
+boxplot(Brix ~ tallo, data = datos2, main = "Brix por tipo de tallo", las = 2, xlab = "")
+boxplot(Pol ~ tallo, data = datos2, main = "Pol por tipo de tallo", las = 2, xlab = "")
+boxplot(Pureza ~ tallo, data = datos2, main = "Pureza por tipo de tallo", las = 2, xlab = "")
+boxplot(Humedad ~ tallo, data = datos2, main = "Humedad por tipo de tallo", las = 2, xlab = "")
+
+
+
+# Cuadro de media, varianza y CV por muestra
+resumen <- datos2 %>%
+  group_by(tallo) %>%
+  summarise(
+    mean_Brix = mean(Brix),
+    var_Brix = var(Brix),
+    cv_Brix = (sd(Brix)/mean(Brix))*100,
+    mean_Pol = mean(Pol),
+    var_Pol = var(Pol),
+    cv_Pol = (sd(Pol)/mean(Pol))*100,
+    mean_Pureza = mean(Pureza),
+    var_Pureza = var(Pureza),
+    cv_Pureza = (sd(Pureza)/mean(Pureza))*100,
+    mean_Humedad = mean(Humedad),
+    var_Humedad = var(Humedad),
+    cv_Humedad = (sd(Humedad)/mean(Humedad))*100
+  )
+resumen
+
+
+# Gráfico de barras para todas las variables
+resumen_cv <- datos2 %>%
+  group_by(tallo) %>%
+  summarise(
+    CV_Brix = (sd(Brix)/mean(Brix))*100,
+    CV_Pol = (sd(Pol)/mean(Pol))*100,
+    CV_Pureza = (sd(Pureza)/mean(Pureza))*100,
+    CV_Humedad = (sd(Humedad)/mean(Humedad))*100
+  ) %>%
+  ungroup()
+# Cuadro de CV por variable
+resumen_cv
+
+resumen_long <- resumen_cv %>%
+  pivot_longer(cols = -tallo, names_to = "Variable", values_to = "CV")
+
+
+ggplot(resumen_long, aes(x=tallo, y=CV, fill=Variable)) +
+  geom_bar(stat="identity", position="dodge") +
+  labs(title="Coeficiente de Variación (CV) por Muestra",
+       x="Número de Muestra",
+       y="CV (%)") +
+  theme_minimal() +
+  scale_fill_brewer(palette="Set2")
+
+
+
+
+
+
+#Mapa de calor
+cv_tallo <- datos2 %>%
+  group_by(tallo) %>%
+  summarise(
+    CV_Brix = (sd(Brix)/mean(Brix))*100,
+    CV_Pol = (sd(Pol)/mean(Pol))*100,
+    CV_Pureza = (sd(Pureza)/mean(Pureza))*100,
+    CV_Humedad = (sd(Humedad)/mean(Humedad))*100
+  ) %>%
+  ungroup()
+
+
+cv_tallo_long <- cv_tallo %>%
+  pivot_longer(cols = starts_with("CV_"), names_to = "Variable", values_to = "CV")
+
+ggplot(cv_tallo_long, aes(x=Variable, y=tallo, fill=CV)) +
+  geom_tile(color="white") +
+  scale_fill_gradient(low="white", high="steelblue") +
+  labs(title="Mapa de calor del CV por Tipo de Tallo",
+       x="Variable",
+       y="Tipo de Tallo",
+       fill="CV (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+
+
+
+
+
+#ANDEVA
+
+names(datos2)
+anova_tallo1<- aov(Brix ~ tallo, data = datos2)
+summary(anova_tallo1)
+
+anova_tallo2<- aov(Pol ~ tallo, data = datos2)
+summary(anova_tallo2)
+
+anova_tallo3<- aov(Pureza ~ tallo, data = datos2)
+summary(anova_tallo3)
+
+anova_tallo4<- aov(Humedad ~ tallo, data = datos2)
+summary(anova_tallo4)
+
+#Contrastes entre muestras
+TukeyHSD(anova_tallo1); TukeyHSD(anova_tallo2); TukeyHSD(anova_tallo3); TukeyHSD(anova_tallo4)
+
+
+pairwise.t.test(datos2$Brix, datos2$tallo, p.adjust.method = "bonferroni")
+pairwise.t.test(datos2$Pol, datos2$tallo, p.adjust.method = "bonferroni")
+pairwise.t.test(datos2$Pureza, datos2$tallo, p.adjust.method = "bonferroni")
+pairwise.t.test(datos2$Humedad, datos2$tallo, p.adjust.method = "bonferroni")
