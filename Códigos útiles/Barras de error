@@ -1,0 +1,29 @@
+# Gráfico de barras de error:
+
+medias_insecticida <- df %>%
+  group_by(insecticida) %>%
+  summarise(
+    media_insectos = mean(insectos_m2, na.rm = TRUE),
+    sd_insectos = sd(insectos_m2, na.rm = TRUE),
+    n = n()
+  ) %>%
+  ungroup() %>%
+  mutate(
+    CV = (sd_insectos / media_insectos) * 100
+  )
+
+print(medias_insecticida)
+
+
+
+ggplot(medias_insecticida, aes(x = insecticida, y = media_insectos)) +
+  geom_point(size = 3, color = "red") +  # punto de la media
+  geom_errorbar(aes(ymin = media_insectos - CV/100 * media_insectos,
+                    ymax = media_insectos + CV/100 * media_insectos),
+                width = 0.2, color = "black", size = 1) +
+  labs(
+    title = "Error plot de insectos/m² por insecticida (Según %CV)",
+    x = "Insecticida",
+    y = "Media de insectos/m²"
+  ) +
+  theme_minimal(base_size = 13)
