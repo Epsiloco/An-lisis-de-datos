@@ -1,182 +1,69 @@
-# ==============================================================
-# 1) Instalación y carga de paquetes necesarios
-# ==============================================================
-
-pacman::p_load(readxl, dplyr, ggplot2, MASS, DHARMa, car, performance, emmeans, multcomp, multcompView)
-
-# ============================================================== 
-# 2) Cargar y preparar los datos
-# ==============================================================
-
-# Ejemplo: se asume que el archivo tiene una variable de conteo (y)
-# y factores de tratamiento (A, B, etc.)
-
-datos <- read_excel("tu_archivo.xlsx") %>%
-  clean_names() %>%
-  mutate(
-    A = factor(A),
-    B = factor(B)
-  )
-
-str(datos)
-summary(datos)
-
-# ============================================================== 
-# 3) Ajuste del modelo con distribución binomial negativa
-# ==============================================================
-
-# Usa glm.nb() del paquete MASS
-m1 <- glm.nb(y ~ A * B, data = datos)
+# MLG: distribución Binomial negativa con función de enlace logarítmica--------------------------------------
+colnames(df)
+m1 <- glm.nb(insectos_m2 ~ insecticida + bloque, data = df)
 
 summary(m1)
-anova(m1, test = "Chisq")
+Anova(m1)
 
-# ============================================================== 
-# 4) Validación de supuestos del modelo
-# ==============================================================
+# Validación de supuestos del modelo
 
-## ---- 4.1) Comprobación de sobreajuste, residuos y distribución ----
 simulationOutput <- simulateResiduals(fittedModel = m1, n = 1000)
-
-# Gráfico general de diagnóstico
-plot(simulationOutput)
-
-# Prueba formal de uniformidad de residuos
+plot(simulationOutput)                                               #pruebas de normalidad y homocedasticidad
+plotResiduals(simulationOutput, form = df$insecticida) # Box-plot
+plotResiduals(simulationOutput, form = df$bloque) # Box-plot/bloque o repetición 
 testUniformity(simulationOutput)
-
-# Prueba de homogeneidad (residuos vs predicciones)
 testDispersion(simulationOutput)
 
-# Prueba de autocorrelación (si hay datos en el tiempo o espacio)
-testTemporalAutocorrelation(simulationOutput)
-testSpatialAutocorrelation(simulationOutput, x = datos$x, y = datos$y) # si hay coordenadas
-
-# ============================================================== 
-# 5) Comprobación de multicolinealidad y efectos influyentes
-# ==============================================================
-
-# Colinealidad entre predictores
-check_collinearity(m1)
-
-# Gráfico de valores influyentes
+# Gráfico de influencia: Multicolinealidad y efectos que influyen 
 influencePlot(m1, id.n = 3)
 
-# ============================================================== 
-# 6) Comparaciones post-hoc (contrastes y medias ajustadas)
-# ==============================================================
-
-emm_m1 <- emmeans(m1, ~ A * B)
-
-# Comparaciones múltiples con ajuste de Tukey
+# Pruebas post-hoc
+emm_m1 <- emmeans(m1, ~ insecticida)
 pairs(emm_m1, adjust = "tukey")
+cld_m1 <- cld(emm_m1, Letters = letters, adjust = "sidak", type = "response")
+cld_m1
 
-# Letras compactas (agrupación de medias)
-cld(emm_m1, Letters = letters, adjust = "tukey")
+# Gráfico de barras con líneas de error
+emm_df <- as.data.frame(cld_m1)
 
-# ============================================================== 
-# 7) Visualización de medias ajustadas
-# ==============================================================
-
-emm_df <- as.data.frame(emm_m1)
-
-ggplot(emm_df, aes(x = A, y = emmean, fill = B)) +
-  geom_col(position = position_dodge(0.9)) +
-  geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE),
-                width = 0.2, position = position_dodge(0.9)) +
-  labs(x = "Factor A", y = "Media ajustada (conteo)", fill = "Factor B",
-       title = "Medias ajustadas del GLM binomial negativo") +
-  theme_minimal()
-
-# ============================================================== 
-# 8) Interpretación de los resultados
-# ==============================================================
-
-# summary(m1): te muestra los coeficientes estimados y su significancia.
-# anova(m1): indica si los efectos principales o las interacciones son significativos.
-# DHARMa: confirma si los residuos se comportan adecuadamente (uniformidad y homogeneidad).
-# emmeans(): te da las medias ajustadas para interpretar biológicamente los efectos.
+ggplot(emm_df, aes(x = insecticida, y = response)) +
+  geom_col(fill = "steelblue", width = 0.7) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.15) +
+  geom_text(aes(label = .group), vjust = -0.5, size = 5) +
+  labs(
+    x = "Tratamiento (Insecticida)",
+    y = "Media ajustada (Insectos/m2)",
+    title = "Medias ajustadas y agrupaciones (GLM binomial negativo)"
+  ) +
+  theme_minimal(base_size = 13)
 
 
+# Modelo Poisson----------------------------------------
 
+m_pois <- glm(insectos_m2 ~ bloque + insecticida, 
+              family = poisson(link = "log"), 
+              data = df)
 
+library(DHARMa)
+simulationOutput <- simulateResiduals(fittedModel = m_pois, n = 1000)
+testDispersion(simulationOutput)  # DHARMa detectará la sobredispersión
+plot(simulationOutput)
 
 
 
-# ==============================================================
-# 1) Instalación y carga de paquetes
-# ==============================================================
+# MLG con distribución quassi poisson--------------------------------------------------
+names(df)
 
-pacman::p_load(readxl, dplyr, ggplot2, car, DHARMa, emmeans, multcomp, multcompView)
-
-# ============================================================== 
-# 2) Cargar y preparar datos
-# ==============================================================
-
-datos <- read_excel("tu_archivo.xlsx") %>%
-  clean_names() %>%
-  mutate(
-    A = factor(A),
-    B = factor(B)
-  )
-
-str(datos)
-summary(datos)
-
-# ============================================================== 
-# 3) Ajuste del modelo GLM con distribución quasi-Poisson
-# ==============================================================
-
-# y = variable de conteo
-m_qp <- glm(y ~ A * B, data = datos, family = quasipoisson(link = "log"))
-
+m_qp<- glm(insectos_m2 ~ bloque + insecticida, family = quasipoisson(link = "log"), data = df)
 summary(m_qp)
-anova(m_qp, test = "F")  # Para quasi-Poisson se usa test F en lugar de Chi-cuadrado
+Anova(m_qp, test.statistic = "F")
 
-# ============================================================== 
-# 4) Validación de supuestos
-# ==============================================================
 
-# ---- 4.1) Diagnóstico de residuos con DHARMa ----
+
 simulationOutput <- simulateResiduals(fittedModel = m_qp, n = 1000)
-plot(simulationOutput)          # gráfico general
-testUniformity(simulationOutput) # prueba de uniformidad de residuos
-testDispersion(simulationOutput) # prueba de sobredispersión residual
-testOutliers(simulationOutput)   # identifica valores atípicos
+plot(simulationOutput)          
+testUniformity(simulationOutput) 
+testDispersion(simulationOutput) 
+testOutliers(simulationOutput)   
 
-# ---- 4.2) Multicolinealidad ----
-car::vif(m_qp)  # VIF < 5 indica baja colinealidad
 
-# ============================================================== 
-# 5) Contrastes y medias ajustadas
-# ==============================================================
-
-emm_qp <- emmeans(m_qp, ~ A * B)
-
-# Comparaciones múltiples (pareadas) con ajuste de Tukey
-pairs(emm_qp, adjust = "tukey")
-
-# Letras compactas (CLD)
-cld(emm_qp, Letters = letters, adjust = "tukey")
-
-# ============================================================== 
-# 6) Visualización de medias ajustadas
-# ==============================================================
-
-emm_df <- as.data.frame(emm_qp)
-
-ggplot(emm_df, aes(x = A, y = emmean, fill = B)) +
-  geom_col(position = position_dodge(0.9)) +
-  geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE),
-                width = 0.2, position = position_dodge(0.9)) +
-  labs(x = "Factor A", y = "Media ajustada (conteo)", fill = "Factor B",
-       title = "Medias ajustadas del GLM Quasi-Poisson") +
-  theme_minimal()
-
-# ============================================================== 
-# 7) Interpretación
-# ==============================================================
-
-# summary(m_qp): coeficientes y significancia de cada factor e interacción
-# anova(m_qp, test="F"): efectos principales y de interacción
-# DHARMa: verifica que los residuos se comporten adecuadamente
-# emmeans + cld: permite interpretar diferencias significativas entre combinaciones
