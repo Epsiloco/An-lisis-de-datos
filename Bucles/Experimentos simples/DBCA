@@ -1,3 +1,785 @@
+# Barquisimento 403 (Ejemplo)
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "missMDA")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#-----------------------------------------------------------------------------------------------
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 5 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 2)
+
+########################################--ANÁLISIS ESTADÍSTICO--##########################################
+# Análisis exploratorio de datos
+
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+summary(datos)
+colnames(datos)
+sapply(datos, class) #Tipo de datos
+variables_numericas <- datos[sapply(datos, is.numeric)]
+round(basicStats(variables_numericas), 2) #Estadística descriptiva
+
+#####################################--- Diseño de bloques completos al azar (DBCA)---#####################################################
+
+# DBCA:
+# ANDEVA
+
+alpha <- 0.15  
+
+# DBCA:
+# ANDEVA
+names(datos)
+tratamiento <- "Tratamiento"
+respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  print(anova(modelo))   # uso anova() en lugar de summary() para que coincida con el manual
+}
+
+
+
+
+
+
+# Verificación de supuestos
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  cat("\n--- Verificación de supuestos ---\n")
+  
+  # 1. QQ-plot
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  
+  # 2. Residuos vs Ajustados
+  plot(modelo$fitted.values, modelo$residuals,
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Shapiro-Wilk
+  if(length(unique(modelo$residuals)) > 1){
+    SW <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(SW)
+  } else {
+    cat("\nShapiro-Wilk no se puede calcular: todos los residuos son idénticos.\n")
+  }
+  
+  # Bartlett y Levene
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    print(bartlett.test(as.formula(paste0("`", var, "` ~ factor(", tratamiento, ")")), data=datos))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    print(leveneTest(as.formula(paste0("`", var, "` ~ factor(", tratamiento, ")")), 
+                     data=datos, center="median"))
+  } else {
+    cat("Bartlett y Levene no se pueden calcular: variable constante.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+# Prueba Múltiple de Medias (PMM):
+
+for (var in respuestas) {
+  
+  # Crear un nombre seguro para la variable
+  nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+  
+  # Ignorar nombres inválidos
+  if(grepl("^var_[_]*$", nombre_var)){
+    cat("\nVariable", var, "omitida: nombre no válido.\n")
+    next
+  }
+  
+  # Crear dataframe temporal y renombrar variable
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  # Asegurar que Tratamiento y Replica sean factores
+  datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+  datos_temp$Replica <- factor(datos_temp$Replica)
+  
+  # Modelo ANDEVA
+  formula <- as.formula(paste0("`", nombre_var, "` ~ Tratamiento + Replica"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Verificar que hay más de un valor y más de un nivel con datos
+  niveles_con_datos <- sum(tapply(datos_temp[[nombre_var]], datos_temp$Tratamiento,
+                                  function(x) length(unique(x)) > 0))
+  
+  if(length(unique(datos_temp[[nombre_var]])) > 1 & niveles_con_datos > 1){
+    
+    # -------------------------
+    # Tukey HSD
+    # -------------------------
+    cat("\n--- Tukey HSD (alpha =", alpha, ") ---\n")
+    print(HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = TRUE))
+    
+    # -------------------------
+    # Scott-Knott
+    # -------------------------
+    cat("\n--- Scott-Knott (alpha =", alpha, ") ---\n")
+    sk <- SK(modelo, which = "Tratamiento", dispersion = "se", sig.level = alpha)
+    print(summary(sk))
+    
+  } else {
+    cat("\nPMM no se puede calcular: variable constante o menos de 2 niveles de tratamiento con datos.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+# Análisis Gráfico:
+
+for (var in respuestas) {
+  
+  # Resumen con medias e IC95%
+  resumen <- datos %>%
+    group_by(.data[[tratamiento]]) %>%
+    summarise(
+      media = mean(.data[[var]], na.rm = TRUE),
+      sd = sd(.data[[var]], na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df = n - 1) * se,
+      IC_sup = media + qt(0.975, df = n - 1) * se,
+      .groups = "drop"
+    ) %>%
+    arrange(media) %>%
+    # Factor ordenado por media
+    mutate(Trat_ordenado = factor(.data[[tratamiento]], levels = .data[[tratamiento]]))
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  colores <- "steelblue"
+  
+  # -------------------------
+  # 1. Boxplot (uno por tratamiento)
+  # -------------------------
+  print(
+    ggplot(datos, aes(x = factor(.data[[tratamiento]]), y = .data[[var]])) +
+      geom_boxplot(fill = "gray70", color = "black") +
+      labs(title = paste("Boxplot -", var), y = var, x = tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 2. Medias con IC95% (vertical)
+  # -------------------------
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media)) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "black") +
+      labs(title = paste("Medias con IC95% -", var), y = var, x = tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 3. Gráfico de líneas con IC95%
+  # -------------------------
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media, group = 1)) +
+      geom_line(size = 1, color = colores) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "black") +
+      labs(title = paste("Líneas con IC95% -", var), y = var, x = tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 4. Medias con IC95% (horizontal)
+  # -------------------------
+  print(
+    ggplot(resumen, aes(y = Trat_ordenado, x = media)) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbarh(aes(xmin = IC_inf, xmax = IC_sup), height = 0.2, color = "black") +
+      labs(title = paste("Medias con IC95% (horizontal) -", var), x = var, y = tratamiento) +
+      theme_minimal()
+  )
+  
+  # -------------------------
+  # 5. Barras con IC95% (ordenadas)
+  # -------------------------
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media)) +
+      geom_col(fill = colores, color = "black") +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "black") +
+      labs(title = paste("Barras con IC95% -", var), y = var, x = tratamiento) +
+      theme_minimal()
+  )
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(dplyr)
+library(ggplot2)
+library(agricolae)
+
+alpha <- 0.15
+tratamiento <- "Tratamiento"
+respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+
+for (var in respuestas) {
+  
+  # -------------------------
+  # Resumen con medias y SE
+  # -------------------------
+  resumen <- datos %>%
+    group_by(across(all_of(tratamiento))) %>%
+    summarise(
+      media = mean(.data[[var]], na.rm = TRUE),
+      sd = sd(.data[[var]], na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df = n - 1) * se,
+      IC_sup = media + qt(0.975, df = n - 1) * se,
+      .groups = "drop"
+    ) 
+  
+  # Renombrar para que coincida con HSD.test
+  resumen <- resumen %>% rename(Tratamiento = all_of(tratamiento))
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  tukey <- HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = FALSE)
+  
+  # Extraer letras
+  letras <- data.frame(
+    Tratamiento = rownames(tukey$groups),
+    letras = tukey$groups$groups,
+    stringsAsFactors = FALSE
+  )
+  
+  # -------------------------
+  # Unir letras al resumen
+  # -------------------------
+  resumen <- left_join(resumen, letras, by = "Tratamiento")
+  
+  # -------------------------
+  # Gráfico de barras con IC95% y letras Tukey
+  # -------------------------
+  ggplot(resumen, aes(x = reorder(Tratamiento, media), y = media, fill = Tratamiento)) +
+    geom_col(color = "gray40", width = 0.7) +
+    geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "gray40") +
+    geom_text(aes(y = IC_sup + 0.05 * max(IC_sup), label = letras), color = "black", size = 5) +
+    scale_fill_manual(values = rep("steelblue", nrow(resumen))) +
+    labs(title = paste("Barras con IC95% y letras Tukey -", var),
+         x = tratamiento, y = var) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "none")
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(dplyr)
+library(ggplot2)
+library(agricolae)
+
+alpha <- 0.15
+tratamiento <- "Tratamiento"
+respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+
+for (var in respuestas) {
+  
+  # -------------------------
+  # Crear modelo ANOVA
+  # -------------------------
+  formula <- as.formula(paste0("`", var, "` ~ Tratamiento + Replica"))
+  modelo <- aov(formula, data = datos)
+  
+  # -------------------------
+  # Tukey HSD
+  # -------------------------
+  tukey <- HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = FALSE)
+  
+  # Extraer letras
+  letras <- tukey$groups %>%
+    tibble::rownames_to_column("Tratamiento") %>%
+    select(Tratamiento, groups) %>%
+    rename(letras = groups)
+  
+  # -------------------------
+  # Resumen de medias y IC95%
+  # -------------------------
+  resumen <- datos %>%
+    group_by(Tratamiento) %>%
+    summarise(
+      media = mean(.data[[var]], na.rm = TRUE),
+      sd = sd(.data[[var]], na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df = n - 1) * se,
+      IC_sup = media + qt(0.975, df = n - 1) * se,
+      .groups = "drop"
+    )
+  
+  # -------------------------
+  # Unir letras de Tukey
+  # -------------------------
+  resumen <- left_join(resumen, letras, by = "Tratamiento")
+  
+  # -------------------------
+  # Gráfico de barras con IC95% y letras
+  # -------------------------
+  ggplot(resumen, aes(x = reorder(Tratamiento, media), y = media, fill = Tratamiento)) +
+    geom_col(color = "gray40", width = 0.7) +
+    geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "gray40") +
+    geom_text(aes(y = IC_sup + 0.05 * max(IC_sup), label = letras), color = "black", size = 5) +
+    scale_fill_manual(values = rep("steelblue", nrow(resumen))) +
+    labs(title = paste("Barras con IC95% y letras Tukey -", var),
+         x = tratamiento, y = var) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "none")
+}
+
+
+
+
+
+# Función para crear gráficos de barras de error con letras de Tukey
+crear_graficos_tukey <- function(datos, tratamiento, respuestas, alpha = 0.15) {
+  
+  # Lista para almacenar todos los gráficos
+  graficos <- list()
+  
+  for (var in respuestas) {
+    
+    # Crear nombre seguro para la variable
+    nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+    
+    # Crear dataframe temporal
+    datos_temp <- datos
+    names(datos_temp)[names(datos_temp) == var] <- nombre_var
+    datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+    datos_temp$Replica <- factor(datos_temp$Replica)
+    
+    # Modelo ANDEVA
+    formula <- as.formula(paste0("`", nombre_var, "` ~ Tratamiento + Replica"))
+    modelo <- aov(formula, data = datos_temp)
+    
+    # Realizar prueba de Tukey
+    tukey <- HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = FALSE)
+    
+    # Obtener grupos de significancia
+    grupos_tukey <- tukey$groups
+    grupos_tukey$Tratamiento <- rownames(grupos_tukey)
+    colnames(grupos_tukey) <- c("media", "grupo")
+    
+    # Calcular estadísticas descriptivas
+    resumen <- datos_temp %>%
+      group_by(Tratamiento) %>%
+      summarise(
+        media = mean(.data[[nombre_var]], na.rm = TRUE),
+        sd = sd(.data[[nombre_var]], na.rm = TRUE),
+        n = n(),
+        se = sd / sqrt(n),
+        IC_inf = media - qt(0.975, df = n - 1) * se,
+        IC_sup = media + qt(0.975, df = n - 1) * se,
+        .groups = "drop"
+      )
+    
+    # Unir con los grupos de Tukey
+    resumen <- resumen %>%
+      left_join(grupos_tukey, by = c("Tratamiento" = "Tratamiento", "media" = "media"))
+    
+    # Ordenar por media para mejor visualización
+    resumen <- resumen %>%
+      arrange(media) %>%
+      mutate(Tratamiento = factor(Tratamiento, levels = Tratamiento))
+    
+    # ====================================
+    # GRÁFICO 1: Barras con error y letras
+    # ====================================
+    p1 <- ggplot(resumen, aes(x = Tratamiento, y = media)) +
+      geom_col(fill = "lightblue", color = "black", alpha = 0.7, width = 0.7) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), 
+                    width = 0.2, color = "black", linewidth = 0.8) +
+      geom_text(aes(y = IC_sup, label = grupo), 
+                vjust = -0.5, size = 5, fontface = "bold") +
+      labs(title = paste("Barras con IC95% y grupos de Tukey -", var),
+           subtitle = paste("Alpha =", alpha),
+           y = var, 
+           x = "Tratamiento") +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", size = 14),
+            plot.subtitle = element_text(face = "italic", size = 10),
+            axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    # ====================================
+    # GRÁFICO 2: Puntos con error y letras
+    # ====================================
+    p2 <- ggplot(resumen, aes(x = Tratamiento, y = media)) +
+      geom_point(size = 4, color = "red", shape = 19) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), 
+                    width = 0.2, color = "darkred", linewidth = 1) +
+      geom_text(aes(y = IC_sup, label = grupo), 
+                vjust = -0.8, size = 5, fontface = "bold", color = "blue") +
+      labs(title = paste("Medias con IC95% y grupos de Tukey -", var),
+           subtitle = paste("Alpha =", alpha),
+           y = var, 
+           x = "Tratamiento") +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", size = 14),
+            plot.subtitle = element_text(face = "italic", size = 10),
+            axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    # ====================================
+    # GRÁFICO 3: Bigotes (boxplot) con letras
+    # ====================================
+    # Preparar datos para boxplot
+    datos_boxplot <- datos_temp
+    names(datos_boxplot)[names(datos_boxplot) == nombre_var] <- "variable"
+    
+    # Calcular posición para las letras (máximo valor por tratamiento)
+    posicion_letras <- datos_boxplot %>%
+      group_by(Tratamiento) %>%
+      summarise(ymax = max(variable, na.rm = TRUE) * 1.05) %>%
+      left_join(resumen %>% select(Tratamiento, grupo), by = "Tratamiento")
+    
+    p3 <- ggplot(datos_boxplot, aes(x = Tratamiento, y = variable)) +
+      geom_boxplot(fill = "lightgreen", color = "black", alpha = 0.7) +
+      geom_text(data = posicion_letras, 
+                aes(x = Tratamiento, y = ymax, label = grupo),
+                vjust = -0.5, size = 5, fontface = "bold", color = "red") +
+      labs(title = paste("Boxplot con grupos de Tukey -", var),
+           subtitle = paste("Alpha =", alpha),
+           y = var, 
+           x = "Tratamiento") +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", size = 14),
+            plot.subtitle = element_text(face = "italic", size = 10),
+            axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    # ====================================
+    # GRÁFICO 4: Barras horizontales con letras
+    # ====================================
+    p4 <- ggplot(resumen, aes(y = Tratamiento, x = media)) +
+      geom_col(fill = "lightcoral", color = "black", alpha = 0.7, width = 0.7) +
+      geom_errorbarh(aes(xmin = IC_inf, xmax = IC_sup), 
+                     height = 0.2, color = "black", linewidth = 0.8) +
+      geom_text(aes(x = IC_sup, label = grupo), 
+                hjust = -0.5, size = 5, fontface = "bold") +
+      labs(title = paste("Barras horizontales con IC95% -", var),
+           subtitle = paste("Alpha =", alpha),
+           x = var, 
+           y = "Tratamiento") +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", size = 14),
+            plot.subtitle = element_text(face = "italic", size = 10))
+    
+    # Almacenar gráficos
+    graficos[[paste0(var, "_barras")]] <- p1
+    graficos[[paste0(var, "_puntos")]] <- p2
+    graficos[[paste0(var, "_bigotes")]] <- p3
+    graficos[[paste0(var, "_horizontal")]] <- p4
+    
+    # Mostrar resumen en consola
+    cat("\n====================================\n")
+    cat("Variable:", var, "\n")
+    cat("====================================\n")
+    print(resumen %>% select(Tratamiento, media, IC_inf, IC_sup, grupo))
+    
+  }
+  
+  return(graficos)
+}
+
+# Usar la función con tus datos
+tratamiento <- "Tratamiento"
+respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+
+# Crear todos los gráficos
+mis_graficos <- crear_graficos_tukey(datos, tratamiento, respuestas, alpha = 0.15)
+
+# Mostrar un gráfico específico (ejemplo)
+print(mis_graficos[["Pol_barras"]])
+print(mis_graficos[["Pol_puntos"]])
+print(mis_graficos[["Pol_bigotes"]])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(dplyr)
+library(ggplot2)
+library(agricolae)
+
+alpha <- 0.15
+tratamiento <- "Tratamiento"
+respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+
+for (var in respuestas) {
+  
+  # -------------------------
+  # Resumen de medias e IC95%
+  # -------------------------
+  resumen <- datos %>%
+    group_by(.data[[tratamiento]]) %>%
+    summarise(
+      media = mean(.data[[var]], na.rm = TRUE),
+      sd = sd(.data[[var]], na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df = n - 1) * se,
+      IC_sup = media + qt(0.975, df = n - 1) * se,
+      .groups = "drop"
+    ) %>%
+    arrange(media) %>%
+    mutate(Trat_ordenado = factor(.data[[tratamiento]], levels = .data[[tratamiento]]))
+  
+  # -------------------------
+  # Modelo ANOVA
+  # -------------------------
+  formula <- as.formula(paste0("`", var, "` ~ Tratamiento + Replica"))
+  modelo <- aov(formula, data = datos)
+  
+  # -------------------------
+  # Prueba de Tukey
+  # -------------------------
+  tukey <- HSD.test(modelo, "Tratamiento", alpha = alpha, console = FALSE)
+  letras <- data.frame(
+    Tratamiento = rownames(tukey$groups),
+    letra = tukey$groups$groups
+  )
+  
+  # -------------------------
+  # Unir letras con resumen
+  # -------------------------
+  resumen <- resumen %>%
+    left_join(letras, by = c(tratamiento = "Tratamiento"))
+  
+  # -------------------------
+  # Gráfico de líneas con IC95% y letras Tukey
+  # -------------------------
+  ggplot(resumen, aes(x = Trat_ordenado, y = media, group = 1)) +
+    geom_line(size = 1, color = "steelblue") +
+    geom_point(size = 3, color = "steelblue") +
+    geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "gray40") +
+    geom_text(aes(y = IC_sup + 0.05 * max(IC_sup), label = letra), color = "black", size = 5) +
+    labs(title = paste("Líneas con IC95% y letras Tukey -", var),
+         x = tratamiento, y = var) +
+    theme_minimal(base_size = 12) +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+
+
+
+# Gráfico de líneas de error y letra según Tukey
+
+# Función para crear gráficos de puntos con barras de error y letras de Tukey
+crear_graficos_puntos_tukey <- function(datos, tratamiento, respuestas, alpha = 0.15) {
+  
+  graficos <- list()
+  
+  for (var in respuestas) {
+    
+    cat("\nProcesando variable:", var, "\n")
+    
+    # Asegurar que Tratamiento sea factor
+    datos$Tratamiento <- factor(datos$Tratamiento)
+    datos$Replica <- factor(datos$Replica)
+    
+    # Modelo ANDEVA
+    formula <- as.formula(paste("`", var, "` ~ Tratamiento + Replica", sep = ""))
+    modelo <- aov(formula, data = datos)
+    
+    # Realizar prueba de Tukey
+    tukey <- HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = FALSE)
+    
+    # Obtener grupos de significancia
+    grupos_df <- data.frame(
+      Tratamiento = rownames(tukey$groups),
+      grupo = tukey$groups$groups
+    )
+    
+    # Calcular estadísticas descriptivas
+    resumen <- datos %>%
+      group_by(Tratamiento) %>%
+      summarise(
+        media = mean(.data[[var]], na.rm = TRUE),
+        sd = sd(.data[[var]], na.rm = TRUE),
+        n = n(),
+        se = sd / sqrt(n),
+        IC_inf = media - qt(0.975, df = n - 1) * se,
+        IC_sup = media + qt(0.975, df = n - 1) * se,
+        .groups = "drop"
+      )
+    
+    # Unir con grupos de Tukey
+    resumen <- merge(resumen, grupos_df, by = "Tratamiento")
+    
+    # Ordenar por media
+    resumen <- resumen[order(resumen$media), ]
+    resumen$Tratamiento <- factor(resumen$Tratamiento, levels = resumen$Tratamiento)
+    
+    # ====================================
+    # GRÁFICO PRINCIPAL: Puntos con barras de error
+    # ====================================
+    p <- ggplot(resumen, aes(x = Tratamiento, y = media)) +
+      # Punto de la media
+      geom_point(size = 4, color = "red", shape = 19) +
+      # Barras de error (bigotes)
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), 
+                    width = 0.2, color = "black", linewidth = 0.8) +
+      # Letras de Tukey
+      geom_text(aes(y = IC_sup, label = grupo), 
+                vjust = -0.8, size = 5, fontface = "bold", color = "blue") +
+      labs(title = paste("Medias con IC95% y grupos de Tukey -", var),
+           subtitle = paste("Alpha =", alpha),
+           y = var, 
+           x = "Tratamiento") +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", size = 14),
+            plot.subtitle = element_text(face = "italic", size = 10),
+            axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    graficos[[var]] <- p
+    
+    # Mostrar resultados
+    cat("Grupos de Tukey para", var, ":\n")
+    print(resumen[, c("Tratamiento", "media", "grupo")])
+  }
+  
+  return(graficos)
+}
+
+# Usar la función con tus datos
+tratamiento <- "Tratamiento"
+respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+
+# Crear los gráficos
+mis_graficos <- crear_graficos_puntos_tukey(datos, tratamiento, respuestas, alpha = 0.15)
+
+# Mostrar los gráficos
+for (i in 1:length(mis_graficos)) {
+  print(mis_graficos[[i]])
+}
+
+# Guardar los gráficos
+for (nombre in names(mis_graficos)) {
+  ggsave(paste0("Puntos_Tukey_", nombre, ".png"), mis_graficos[[nombre]], 
+         width = 10, height = 6, dpi = 300)
+  cat("Gráfico guardado: Puntos_Tukey_", nombre, ".png\n")
+  
+  
+
+########################################################################################################################
 paquetes <- c(
   "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
   "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
