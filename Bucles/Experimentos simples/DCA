@@ -20,6 +20,230 @@ if(length(no_instalados)) {
 
 # Carga todos los paquetes (opcional)
 lapply(paquetes, library, character.only = TRUE)
+
+#-----------------------------------------------------------------------------------------------
+archivo <- file.choose() #Abrir el archivo Excel  
+hojas <- excel_sheets(archivo); hojas
+for (h in hojas) {
+  cat("\n--- Hoja:", h, "---\n")
+  datos_hoja <- read_excel(archivo, sheet = h, n_max = 10)  # solo primeras 10 filas
+  print(datos_hoja)
+}
+datos <- read_excel(archivo, sheet = 9)
+
+########################################--ANÁLISIS ESTADÍSTICO--##########################################
+attach(datos)
+str(datos)
+head(datos)
+tail(datos)
+view(datos)
+summary(datos)
+colnames(datos)
+sapply(datos, class)
+variables_numericas <- datos[sapply(datos, is.numeric)]
+round(basicStats(variables_numericas), 2)
+
+############################--EXPERIMENTOS SIMPLES--##############################################
+
+tratamiento <- "Tratamiento"
+respuestas <- c("TCH", "Brix", "Pol", "Pureza", "Jugo", "Fibra", "Humedad","Rendimiento")
+
+#-----------------------------------------------------------------------------------------------
+# ANDEVA
+for (var in respuestas) {
+  
+  # 🔹 Conversión de tipos
+  datos[[tratamiento]] <- as.factor(datos[[tratamiento]])
+  datos[[var]] <- as.numeric(datos[[var]])
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  print(summary(modelo))
+}
+
+#-----------------------------------------------------------------------------------------------
+# Verificación de los supuestos
+for (var in respuestas) {
+  
+  # 🔹 Conversión de tipos
+  datos[[tratamiento]] <- as.factor(datos[[tratamiento]])
+  datos[[var]] <- as.numeric(datos[[var]])
+  
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  cat("\n--- Verificación de supuestos ---\n")
+  
+  # QQ-plot
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  
+  # Residuos vs Ajustados
+  plot(modelo$fitted.values, modelo$residuals, 
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Shapiro-Wilk
+  if(length(unique(modelo$residuals)) > 1){
+    SW <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(SW)
+  } else {
+    cat("\nShapiro-Wilk no se puede calcular: todos los residuos son idénticos.\n")
+  }
+  
+  # Bartlett y Levene
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    print(bartlett.test(formula, data=datos))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    print(leveneTest(formula, data=datos, center="median"))
+  } else {
+    cat("Bartlett y Levene no se pueden calcular: variable constante.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+#-----------------------------------------------------------------------------------------------
+# Prueba múltiple de medias (Tukey y Scott-Knott)
+for (var in respuestas) {
+  
+  # 🔹 Conversión de tipos
+  datos[[tratamiento]] <- as.factor(datos[[tratamiento]])
+  datos[[var]] <- as.numeric(datos[[var]])
+  
+  nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+  
+  if(grepl("^var_[_]*$", nombre_var)){
+    cat("\nVariable", var, "omitida: nombre no válido para análisis.\n")
+    next
+  }
+  
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  formula <- as.formula(paste0("`", nombre_var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Tukey HSD
+  if(length(unique(datos_temp[[nombre_var]])) > 1){
+    cat("\n--- Tukey HSD ---\n")
+    HSD.test(modelo, tratamiento, console=TRUE)
+  } else {
+    cat("\nTukey HSD no se puede calcular: variable constante.\n")
+  }
+  
+  # Scott-Knott
+  if(length(unique(datos_temp[[nombre_var]])) > 1){
+    cat("\n--- Scott-Knott ---\n")
+    sk <- SK(modelo, which=tratamiento, dispersion="se", sig.level=0.05)
+    print(summary(sk))
+  } else {
+    cat("\nScott-Knott no se puede calcular: variable constante o sin variación.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+#-----------------------------------------------------------------------------------------------
+# Análisis Gráfico
+
+# Análisis Gráfico con letras de Tukey
+for (var in respuestas) {
+  
+  # 🔹 Conversión de tipos
+  datos[[tratamiento]] <- as.factor(datos[[tratamiento]])
+  datos[[var]] <- as.numeric(datos[[var]])
+  
+  # Resumen con medias e IC95%
+  resumen <- datos %>%
+    group_by(.data[[tratamiento]]) %>%
+    summarise(
+      media = mean(.data[[var]], na.rm=TRUE),
+      sd = sd(.data[[var]], na.rm=TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df=n-1) * se,
+      IC_sup = media + qt(0.975, df=n-1) * se,
+      .groups="drop"
+    )
+  
+  # Letras de Tukey
+  formula <- as.formula(paste0("`", var, "` ~ `", tratamiento, "`"))
+  modelo <- aov(formula, data = datos)
+  tukey <- HSD.test(modelo, tratamiento, group = TRUE)
+  letras <- tukey$groups
+  letras[[tratamiento]] <- rownames(letras)
+  resumen <- merge(resumen, letras, by.x = tratamiento, by.y = tratamiento)
+  
+  # Ordenar tratamientos
+  resumen <- resumen %>%
+    arrange(media) %>%
+    mutate(Trat_ordenado = factor(.data[[tratamiento]], levels = .data[[tratamiento]]))
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  colores <- "steelblue"
+  
+  # Gráfico de líneas con IC95% y letras de Tukey
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media, group = 1)) +
+      geom_line(size = 1, color = colores) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.2, color = "black") +
+      geom_text(aes(label = groups, y = IC_sup + 0.05 * max(media)), vjust = 0, size = 5) +
+      labs(title = paste("Medias con IC95% y letras de Tukey -", var),
+           y = var, x = tratamiento) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5))
+  )
+}
+
+
+
+
+
+
+#----------------------------------------------------------------------------------------------------------------------------------------
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "missMDA")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
 #-----------------------------------------------------------------------------------------------
 archivo <- file.choose() #Abrir el archivo Excel  
 hojas <- excel_sheets(archivo); hojas
