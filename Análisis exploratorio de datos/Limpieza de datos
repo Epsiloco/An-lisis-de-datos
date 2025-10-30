@@ -464,6 +464,168 @@ datos[datos$rendimiento > 5000, ]  # Ajusta el umbral según la variable
 # Unificar nombres (todo mayúscula y sin espacios)
 datos$rendimiento <- toupper(trimws(datos$rendimiento)) #Para columna de los tratamientos
 
+####################################################################################################################
 
+
+
+
+
+
+
+
+
+
+# IDENTIFICACIÓN DE VALORES ATÍPICOS
+
+
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+excel_sheets("Concepción Rotación.xlsx")
+datos<- read_excel("Concepción Rotación.xlsx", sheet = 2)
+attach(datos)
+view(datos)
+
+install.packages("DataExplorer")
+library(DataExplorer)
+create_report(datos)
+
+# Activar con ESQUISSE en Addins #Para crear gráficos
+install.packages("esquisse")
+library(esquisse)
+
+
+install.packages("dlookr")
+library(dlookr)
+
+#Diagnóstico exploratorio
+diagnose(datos)
+plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
+diagnose_na(datos)
+
+#Valores atipicos 
+plot_outlier(datos)
+diagnose_outlier(datos)
+outliers <- find_outlier(datos)
+
+
+#Análisis descriptivo
+names(datos)
+describe(datos)
+describe_by(datos, "Tratamiento") #para ver estadísticas por tratamiento
+
+#Distribuciones
+plot_density(datos)
+
+#Imputación
+imputed <- imputate_na(datos)
+
+#Imputación por cada variable
+imputed <- imputate_na(datos, Total_Plantas)
+
+#Eliminar valores atípicos
+datos_sin_out <- datos %>% remove_outlier()
+
+
+
+
+datos <- datos %>%
+  mutate(
+    outlier_Total_Plantas = ifelse(Total_Plantas %in% boxplot.stats(Total_Plantas)$out, TRUE, FALSE),
+    outlier_Peso_Kg = ifelse(Peso_Kg %in% boxplot.stats(Peso_Kg)$out, TRUE, FALSE)
+  )
+
+# Filas que tienen algún outlier
+outlier_rows <- datos %>%
+  filter(outlier_Total_Plantas == TRUE | outlier_Peso_Kg == TRUE)
+
+outlier_rows
+
+#Eliminar atípicos
+datos_sin_out <- datos %>%
+  filter(!outlier_Total_Plantas & !outlier_Peso_Kg)
+
+view(datos_sin_out)
+
+
+
+#Prueba de Grubbs
+
+names(datos)
+install.packages("outliers")
+library(outliers)
+
+grubbs.test(datos$peso_kg)
+
+outlier(datos$peso_kg)
+
+grubbs.test(datos$total_plantas)
+
+outlier(datos$total_plantas)
+
+
+# Prueba de Grubbs en bucle:
+
+library(outliers)
+
+x <- datos$total_plantas
+
+repeat {
+  test <- grubbs.test(x)
+  print(test)
+  
+  if (test$p.value < 0.05) {
+    # Detectar si el outlier es el más alto o el más bajo
+    if (grepl("highest", test$alternative)) {
+      outlier_value <- max(x)
+    } else {
+      outlier_value <- min(x)
+    }
+    cat("Eliminando outlier:", outlier_value, "\n")
+    x <- x[x != outlier_value]
+  } else {
+    break
+  }
+}
+
+# Resultado limpio
+x
+
+attach(datos)
+# Box-plot para detectar valores atípicos
+names(datos)
+boxPlot(datos$total_plantas ~ datos$tratamiento)
+a=boxplot(datos$total_plantas ~ datos$tratamiento)
+a
+
+
+tapply(datos$total_plantas, datos$tratamiento, boxplot.stats)
+
+#----------------------------------------------------------------------
+install.packages("dplyr")
+install.packages("rstatix")
+library(dplyr)
+library(rstatix)
 
 
