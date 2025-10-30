@@ -52,3 +52,9 @@ for (h in hojas) {
 }
 datos <- read_excel(archivo, sheet = 1)
 #------------------------------------------------------------------------------------------------
+
+# ANÁLISIS EXPLORATORIO RÁPIDO:
+
+install.packages("DataExplorer")
+library(DataExplorer)
+create_report(datos)
