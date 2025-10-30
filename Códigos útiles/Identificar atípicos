@@ -1,0 +1,21 @@
+attach(datos)
+# Box-plot para detectar valores atípicos
+names(datos)
+boxplot(datos$Total_Plantas ~ datos$Tratamiento)
+a=boxplot(datos$Total_Plantas ~ datos$Tratamiento)
+a
+
+boxplot(datos$Peso_Kg ~ datos$Tratamiento)
+b=boxplot(datos$Peso_Kg ~ datos$Tratamiento)
+b
+
+
+# Para identificar atípicos (definitiva)
+names(datos)
+tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
+tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
+
+# Otra forma de identificar atípicos:
+datos %>%
+  group_by(Tratamiento) %>%
+  identify_outliers(Total_Plantas)
