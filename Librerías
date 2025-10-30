@@ -58,3 +58,59 @@ datos <- read_excel(archivo, sheet = 1)
 install.packages("DataExplorer")
 library(DataExplorer)
 create_report(datos)
+
+# Activar con ESQUISSE en Addins #Para crear gráficos
+install.packages("esquisse")
+library(esquisse)
+
+
+install.packages("dlookr")
+library(dlookr)
+
+#Diagnóstico exploratorio
+diagnose(datos)
+plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
+diagnose_na(datos)
+
+#Valores atipicos 
+plot_outlier(datos)
+diagnose_outlier(datos)
+outliers <- find_outlier(datos)
+
+
+#Análisis descriptivo
+names(datos)
+describe(datos)
+describe_by(datos, "Tratamiento") #para ver estadísticas por tratamiento
+
+#Distribuciones
+plot_density(datos)
+
+#Imputación
+imputed <- imputate_na(datos)
+
+#Imputación por cada variable
+imputed <- imputate_na(datos, Total_Plantas)
+
+#Eliminar valores atípicos
+datos_sin_out <- datos %>% remove_outlier()
+
+
+datos <- datos %>%
+  mutate(
+    outlier_Total_Plantas = ifelse(Total_Plantas %in% boxplot.stats(Total_Plantas)$out, TRUE, FALSE),
+    outlier_Peso_Kg = ifelse(Peso_Kg %in% boxplot.stats(Peso_Kg)$out, TRUE, FALSE)
+  )
+
+# Filas que tienen algún outlier
+outlier_rows <- datos %>%
+  filter(outlier_Total_Plantas == TRUE | outlier_Peso_Kg == TRUE)
+
+outlier_rows
+
+#Eliminar atípicos
+datos_sin_out <- datos %>%
+  filter(!outlier_Total_Plantas & !outlier_Peso_Kg)
+
+view(datos_sin_out)
+
