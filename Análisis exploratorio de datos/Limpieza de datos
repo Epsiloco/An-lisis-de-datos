@@ -467,16 +467,7 @@ datos$rendimiento <- toupper(trimws(datos$rendimiento)) #Para columna de los tra
 ####################################################################################################################
 
 
-
-
-
-
-
-
-
-
 # IDENTIFICACIÓN DE VALORES ATÍPICOS
-
 
 # Lista de paquetes requeridos
 paquetes <- c(
@@ -533,7 +524,7 @@ outliers <- find_outlier(datos)
 #Análisis descriptivo
 names(datos)
 describe(datos)
-describe_by(datos, "Tratamiento") #para ver estadísticas por tratamiento
+describe_by(datos, Tratamiento) #para ver estadísticas por tratamiento
 
 #Distribuciones
 plot_density(datos)
@@ -576,20 +567,20 @@ names(datos)
 install.packages("outliers")
 library(outliers)
 
-grubbs.test(datos$peso_kg)
+grubbs.test(datos$Peso_Kg)
 
-outlier(datos$peso_kg)
+outlier(datos$Peso_Kg)
 
-grubbs.test(datos$total_plantas)
+grubbs.test(datos$Total_Plantas)
 
-outlier(datos$total_plantas)
+outlier(datos$Total_Plantas)
 
 
 # Prueba de Grubbs en bucle:
 
 library(outliers)
 
-x <- datos$total_plantas
+x <- datos$Peso_Kg
 
 repeat {
   test <- grubbs.test(x)
@@ -615,17 +606,22 @@ x
 attach(datos)
 # Box-plot para detectar valores atípicos
 names(datos)
-boxPlot(datos$total_plantas ~ datos$tratamiento)
-a=boxplot(datos$total_plantas ~ datos$tratamiento)
+boxplot(datos$Total_Plantas ~ datos$Tratamiento)
+a=boxplot(datos$Total_Plantas ~ datos$Tratamiento)
 a
 
+boxplot(datos$Peso_Kg ~ datos$Tratamiento)
+b=boxplot(datos$Peso_Kg ~ datos$Tratamiento)
+b
 
-tapply(datos$total_plantas, datos$tratamiento, boxplot.stats)
 
-#----------------------------------------------------------------------
-install.packages("dplyr")
-install.packages("rstatix")
-library(dplyr)
-library(rstatix)
+# Para identificar atípicos (definitiva)
+names(datos)
+tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
+tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
 
+# Otra forma de identificar atípicos:
+datos %>%
+  group_by(Tratamiento) %>%
+  identify_outliers(Total_Plantas)
 
