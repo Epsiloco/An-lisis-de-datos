@@ -1,0 +1,301 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+excel_sheets("Playa Grande 701, poblacion, Resiembra (2).xlsx")
+datos<- read_excel("Playa Grande 701, poblacion, Resiembra (2).xlsx", sheet = 3)
+attach(datos)
+view(datos)
+names(datos)
+
+
+
+datos_mod <- datos %>%
+  mutate(across(
+    c(Surco_1, Surco_2, Surco_3, Surco_4, Surco_5),
+    ~ case_when(
+      Tratamiento == 1 ~ . / 1,
+      Tratamiento == 3 ~ . / 1.25,
+      Tratamiento == 5 ~ . / 1.5,
+      Tratamiento == 7 ~ . / 1.75,
+      TRUE ~ .
+    )
+  ))
+view(datos_mod)
+tail(datos)
+tail(datos_mod)
+attach(datos_mod)
+names(datos_mod)
+
+
+
+
+medias_trat <- datos_mod %>%
+  rowwise() %>%
+  mutate(media_surcos = mean(c(Surco_1, Surco_2, Surco_3, Surco_4, Surco_5), na.rm = TRUE)) %>%
+  ungroup() %>%
+  
+
+  group_by(Tratamiento) %>%
+  summarise(
+    media_tratamiento = mean(media_surcos, na.rm = TRUE),
+    sd_tratamiento = sd(media_surcos, na.rm = TRUE),
+    cv_tratamiento = (sd_tratamiento / media_tratamiento) * 100
+  )
+
+
+medias_trat
+
+
+
+# Calcular las medias por tratamiento y surco
+medias_surco_trat <- datos_mod %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    Surco_1 = mean(Surco_1, na.rm = TRUE),
+    Surco_2 = mean(Surco_2, na.rm = TRUE),
+    Surco_3 = mean(Surco_3, na.rm = TRUE),
+    Surco_4 = mean(Surco_4, na.rm = TRUE),
+    Surco_5 = mean(Surco_5, na.rm = TRUE)
+  )
+
+# Ver resultado
+medias_surco_trat
+
+
+#Gráficos
+
+# Mapa de calor
+
+ggplot(datos_long, aes(x = Surco, y = factor(Tratamiento), fill = Media)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "yellow", high = "darkgreen") +
+  labs(x = "Surco", y = "Tratamiento", fill = "Media (Tallos/m)") +
+  theme_minimal()
+
+
+
+# Gráfico de barras de error
+
+resumen_trat <- datos_mod %>%
+  rowwise() %>%
+  mutate(media_surcos = mean(c(Surco_1, Surco_2, Surco_3, Surco_4, Surco_5), na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    media = mean(media_surcos, na.rm = TRUE),
+    sd = sd(media_surcos, na.rm = TRUE),
+    cv = (sd / media) * 100,
+    n = n()
+  ) %>%
+  mutate(
+    error = (cv / 100) * media  # error calculado a partir del CV
+  )
+
+
+
+resumen_trat <- datos_mod %>%
+  rowwise() %>%
+  mutate(media_surcos = mean(c(Surco_1, Surco_2, Surco_3, Surco_4, Surco_5), na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    media = mean(media_surcos, na.rm = TRUE),
+    sd = sd(media_surcos, na.rm = TRUE),
+    cv = (sd / media) * 100,
+    n = n()
+  ) %>%
+  mutate(
+    error = (cv / 100) * media  # error calculado según CV
+  )
+
+
+ggplot(resumen_trat, aes(x = factor(Tratamiento), y = media)) +
+  geom_point(size = 3, color = "steelblue", shape = 16) +  # punto central (media)
+  geom_errorbar(aes(ymin = media - error, ymax = media + error),
+                width = 0.15, linewidth = 0.9, color = "black") +  # líneas de error
+  labs(
+    title = "Medias por tratamiento con líneas de error (±CV)",
+    x = "Tratamiento",
+    y = "Media ± CV"
+  ) +
+  theme_minimal(base_size = 13)
+
+
+
+#Gráfico de líneas
+
+datos_long <- datos_mod %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    Surco_1 = mean(Surco_1, na.rm = TRUE),
+    Surco_2 = mean(Surco_2, na.rm = TRUE),
+    Surco_3 = mean(Surco_3, na.rm = TRUE),
+    Surco_4 = mean(Surco_4, na.rm = TRUE),
+    Surco_5 = mean(Surco_5, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = starts_with("Surco"),
+               names_to = "Surco",
+               values_to = "Media")
+
+
+
+ggplot(datos_long, aes(x = factor(Tratamiento), y = Media, group = Surco, color = Surco)) +
+  geom_line(linewidth = 1.2, alpha = 0.9) +                    # líneas suaves y gruesas
+  geom_point(size = 3, shape = 21, fill = "white", stroke = 1) +  # puntos con borde
+  scale_color_brewer(palette = "Dark2") +                      # paleta profesional
+  labs(
+    title = "Comportamiento de los surcos según el tratamiento",
+    subtitle = "Promedio de los cinco surcos por tratamiento",
+    x = "Tratamiento",
+    y = "Media de los surcos",
+    color = "Surco"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray85", linewidth = 0.4),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.background = element_rect(fill = "gray98", color = NA),
+    axis.text = element_text(color = "gray20")
+  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(officer)
+library(flextable)
+library(ggplot2)
+library(dplyr)
+
+# Crear documento Word
+doc <- read_docx()
+
+# Título
+doc <- doc %>%
+  body_add_par("Informe de análisis de medias por tratamiento y surcos", style = "heading 1")
+
+# Tabla: medias por tratamiento
+doc <- doc %>%
+  body_add_par("Medias por tratamiento", style = "heading 2") %>%
+  body_add_flextable(
+    flextable(medias_trat) %>%
+      autofit()
+  )
+
+# Tabla: medias por surco y tratamiento
+doc <- doc %>%
+  body_add_par("Medias por tratamiento y surco", style = "heading 2") %>%
+  body_add_flextable(
+    flextable(medias_surco_trat) %>%
+      autofit()
+  )
+
+# Gráfico 1: Mapa de calor
+heatmap_plot <- ggplot(datos_long, aes(x = Surco, y = factor(Tratamiento), fill = Media)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "yellow", high = "darkgreen") +
+  labs(x = "Surco", y = "Tratamiento", fill = "Media (Tallos/m)") +
+  theme_minimal()
+
+# Guardar gráfico temporal
+ggsave("heatmap_plot.png", heatmap_plot, width = 6, height = 4, dpi = 300)
+doc <- doc %>%
+  body_add_par("Mapa de calor de los surcos por tratamiento", style = "heading 2") %>%
+  body_add_img("heatmap_plot.png", width = 6, height = 4)
+
+# Gráfico 2: Líneas de error (error plots)
+error_plot <- ggplot(resumen_trat, aes(x = factor(Tratamiento), y = media)) +
+  geom_point(size = 3, color = "steelblue", shape = 16) +
+  geom_errorbar(aes(ymin = media - error, ymax = media + error),
+                width = 0.15, linewidth = 0.9, color = "black") +
+  labs(
+    title = "Medias por tratamiento con líneas de error (±CV)",
+    x = "Tratamiento",
+    y = "Media ± CV"
+  ) +
+  theme_minimal(base_size = 13)
+
+ggsave("error_plot.png", error_plot, width = 6, height = 4, dpi = 300)
+doc <- doc %>%
+  body_add_par("Gráfico de líneas de error por tratamiento", style = "heading 2") %>%
+  body_add_img("error_plot.png", width = 6, height = 4)
+
+# Gráfico 3: Curvas por surco
+line_plot <- ggplot(datos_long, aes(x = factor(Tratamiento), y = Media, group = Surco, color = Surco)) +
+  geom_line(linewidth = 1.2, alpha = 0.9) +
+  geom_point(size = 3, shape = 21, fill = "white", stroke = 1) +
+  scale_color_brewer(palette = "Dark2") +
+  labs(
+    title = "Comportamiento de los surcos según el tratamiento",
+    subtitle = "Promedio de los cinco surcos por tratamiento",
+    x = "Tratamiento",
+    y = "Media de los surcos",
+    color = "Surco"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray85", linewidth = 0.4),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    legend.background = element_rect(fill = "gray98", color = NA),
+    axis.text = element_text(color = "gray20")
+  )
+
+ggsave("line_plot.png", line_plot, width = 6, height = 4, dpi = 300)
+doc <- doc %>%
+  body_add_par("Curvas de los surcos por tratamiento", style = "heading 2") %>%
+  body_add_img("line_plot.png", width = 6, height = 4)
+
+# Guardar documento Word
+print(doc, target = "Informe_Medias_Tratamientos.docx")
