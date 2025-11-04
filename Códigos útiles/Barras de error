@@ -27,3 +27,33 @@ ggplot(medias_insecticida, aes(x = insecticida, y = media_insectos)) +
     y = "Media de insectos/m²"
   ) +
   theme_minimal(base_size = 13)
+
+####################################################################################################
+
+#Gráfico de barras de error con las letras
+
+names(datos)
+
+letras_tukey <- tukey$groups %>%
+  mutate(Tratamiento = rownames(tukey$groups)) %>%
+  select(Tratamiento, groups)
+
+# Unimos con la tabla de medias
+medias_tallos2 <- medias_tallos2 %>%
+  left_join(letras_tukey, by = "Tratamiento")
+
+
+
+ggplot(medias_tallos2, aes(x = Tratamiento, y = media_tallos)) +
+  geom_point(size = 3, color = "red") +
+  geom_errorbar(aes(ymin = media_tallos - CV/100 * media_tallos,
+                    ymax = media_tallos + CV/100 * media_tallos),
+                width = 0.2, color = "black", size = 1) +
+  geom_text(aes(label = groups, y = media_tallos + (CV/100 * media_tallos) + 5),
+            size = 5, fontface = "bold") + # letras arriba de las barras
+  labs(
+    title = "Error plot del número total de plantas (Según %CV y Tukey)",
+    x = "Tratamiento",
+    y = "Número de plantas"
+  ) +
+  theme_minimal(base_size = 13)
