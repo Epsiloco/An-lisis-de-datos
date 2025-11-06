@@ -1,0 +1,328 @@
+####################################--Variación porcentual entre tratamiento--#################33
+
+names(datos)
+medias_trat <- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    media_Brix = mean(Brix, na.rm = TRUE),
+    media_Humedad = mean(Humedad, na.rm = TRUE),
+    media_Pol = mean(Pol, na.rm = TRUE),
+    media_Pureza = mean(Pureza, na.rm = TRUE)
+  )
+
+
+variacion_relativa <- function(variable) {
+  expand_grid(
+    Trat1 = medias_trat$Tratamiento,
+    Trat2 = medias_trat$Tratamiento
+  ) %>%
+    filter(Trat1 != Trat2) %>%
+    left_join(medias_trat %>% select(Tratamiento, media = all_of(variable)), 
+              by = c("Trat1" = "Tratamiento")) %>%
+    rename(Media1 = media) %>%
+    left_join(medias_trat %>% select(Tratamiento, media = all_of(variable)), 
+              by = c("Trat2" = "Tratamiento")) %>%
+    rename(Media2 = media) %>%
+    mutate(
+      Variacion_porcentual = ((Media2 - Media1) / Media1) * 100
+    ) %>%
+    arrange(Trat1, Trat2)
+}
+
+var_Brix <- variacion_relativa("media_Brix") %>% mutate(Variable = "Brix")
+var_Humedad <- variacion_relativa("media_Humedad") %>% mutate(Variable = "Humedad")
+var_Pol <- variacion_relativa("media_Pol") %>% mutate(Variable = "Pol")
+var_Pureza <- variacion_relativa("media_Pureza") %>% mutate(Variable = "Pureza")
+
+
+variaciones_totales <- bind_rows(var_Brix, var_Humedad, var_Pol, var_Pureza) %>%
+  select(Variable, Trat1, Trat2, Media1, Media2, Variacion_porcentual)
+
+
+variaciones_totales
+print(variaciones_totales, n=Inf)
+
+
+# Contrastes:
+
+names(datos)
+anova_Brix<- aov(Brix ~ Tratamiento + Replica) 
+anova_Humedad<- aov(Humedad ~ Tratamiento + Replica) 
+anova_Pol<- aov(Pol ~ Tratamiento + Replica) 
+anova_Pureza<- aov(Pureza ~ Tratamiento + Replica) 
+
+TukeyHSD(anova_Brix); TukeyHSD(anova_Humedad); TukeyHSD(anova_Pol); TukeyHSD(anova_Pureza)
+
+
+#############################--% de variación que aporta cada tratamiento--#############################
+
+############### Para las variables individuales
+
+medias <- aggregate(Brix ~ Tratamiento, data = datos, FUN = mean)
+n_rep <- table(datos$Tratamiento)
+media_total <- mean(datos$Brix)
+
+medias$SS_tratamiento <- n_rep * (medias$Brix - media_total)^2
+
+SS_total <- sum((datos$Brix - media_total)^2)
+SS_trat <- sum(medias$SS_tratamiento)
+
+# Porcentaje sobre el total
+medias$Pct_total <- medias$SS_tratamiento / SS_total * 100
+
+# Porcentaje relativo dentro del tratamiento
+medias$Pct_trat <- medias$SS_tratamiento / SS_trat * 100
+
+medias
+
+
+############### En bucle ##########################
+
+
+# Variables a analizar
+variables <- c("Brix", "Humedad", "Pol", "Pureza")
+
+for (var in variables) {
+  # Crear la fórmula (ejemplo: Brix ~ Tratamiento)
+  formula_text <- paste(var, "~ Tratamiento")
+  
+  # Calcular medias por tratamiento
+  medias <- aggregate(as.formula(formula_text), data = datos, FUN = mean)
+  
+  # Obtener número de repeticiones por tratamiento (como vector numérico)
+  n_rep <- as.numeric(table(datos$Tratamiento))
+  
+  # Calcular media general
+  media_total <- mean(datos[[var]], na.rm = TRUE)
+  
+  # Calcular suma de cuadrados por tratamiento
+  medias$SS_tratamiento <- n_rep * (medias[[var]] - media_total)^2
+  
+  # Calcular sumas de cuadrados total y del factor
+  SS_total <- sum((datos[[var]] - media_total)^2, na.rm = TRUE)
+  SS_trat <- sum(medias$SS_tratamiento)
+  
+  # Calcular porcentajes
+  medias$Pct_total <- medias$SS_tratamiento / SS_total * 100
+  medias$Pct_trat <- medias$SS_tratamiento / SS_trat * 100
+  
+  # Renombrar la columna de la variable actual a "Media"
+  colnames(medias)[2] <- "Media"
+  
+  # Agregar columna con el nombre de la variable
+  medias$Variable <- var
+  
+  # Reordenar columnas
+  medias <- medias[, c("Variable", "Tratamiento", "Media", 
+                       "SS_tratamiento", "Pct_total", "Pct_trat")]
+  
+  # Imprimir resultados por variable
+  cat("\n\n===========================\n")
+  cat("Variable:", var, "\n")
+  cat("===========================\n")
+  print(medias)
+}
+
+
+############--Gráficos (aporte de variabilidad de cada tratamiento al factor Tratamiento)
+
+
+library(ggplot2)
+
+# Variables a analizar
+variables <- c("No_Tallo", "Brix", "Humedad", "Pol", "Pureza")
+
+for (var in variables) {
+  # Calcular medias por tratamiento
+  formula_text <- paste(var, "~ Tratamiento")
+  medias <- aggregate(as.formula(formula_text), data = datos, FUN = mean)
+  
+  n_rep <- as.numeric(table(datos$Tratamiento))
+  media_total <- mean(datos[[var]], na.rm = TRUE)
+  
+  # Suma de cuadrados por tratamiento
+  medias$SS_tratamiento <- n_rep * (medias[[var]] - media_total)^2
+  
+  # Suma de cuadrados total y del factor
+  SS_total <- sum((datos[[var]] - media_total)^2, na.rm = TRUE)
+  SS_trat <- sum(medias$SS_tratamiento)
+  
+  # Porcentaje de variación de cada tratamiento respecto al factor
+  medias$Pct_trat <- medias$SS_tratamiento / SS_trat * 100
+  
+  # Renombrar columna de la variable a "Media" para consistencia
+  colnames(medias)[2] <- "Media"
+  
+  # Graficar
+  p <- ggplot(medias, aes(x = Tratamiento, y = Pct_trat, fill = Tratamiento)) +
+    geom_bar(stat = "identity", color = "black") +
+    geom_text(aes(label = round(Pct_trat, 1)), vjust = -0.5) +
+    labs(title = paste("Porcentaje de variación que aporta cada tratamiento -", var),
+         y = "Porcentaje (%)",
+         x = "Tratamiento") +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p)  # Mostrar cada gráfico en ventana separada
+}
+
+
+
+####################### Gráfico general de aporte de variabilidad (tratamiento vs error)
+
+
+library(ggplot2)
+library(dplyr)
+
+# Variables a analizar
+variables <- c("No_Tallo", "Brix", "Humedad", "Pol", "Pureza")
+
+# Data frame vacío para guardar resultados
+df_var_componentes <- data.frame()
+
+for (var in variables) {
+  # Crear modelo ANOVA
+  formula_text <- paste(var, "~ Tratamiento + Replica")
+  modelo <- aov(as.formula(formula_text), data = datos)
+  resumen <- summary(modelo)[[1]]
+  
+  # Extraer sumas de cuadrados
+  SS_trat <- resumen["Tratamiento", "Sum Sq"]
+  SS_error <- resumen["Residuals", "Sum Sq"]
+  SS_total <- SS_trat + SS_error
+  
+  # Calcular porcentajes
+  Pct_trat <- SS_trat / SS_total * 100
+  Pct_error <- SS_error / SS_total * 100
+  
+  # Guardar resultados en el dataframe
+  df_var_componentes <- rbind(df_var_componentes,
+                              data.frame(
+                                Variable = var,
+                                Fuente = c("Tratamiento", "Error", "Total"),
+                                Porcentaje = c(Pct_trat, Pct_error, 100)
+                              ))
+}
+
+# Graficar para cada variable
+for (var in variables) {
+  df_temp <- df_var_componentes %>% filter(Variable == var)
+  
+  p <- ggplot(df_temp, aes(x = Fuente, y = Porcentaje, fill = Fuente)) +
+    geom_bar(stat = "identity", color = "black") +
+    geom_text(aes(label = round(Porcentaje, 1)), vjust = -0.5) +
+    scale_fill_manual(values = c("Tratamiento" = "darkgreen",
+                                 "Error" = "firebrick",
+                                 "Total" = "gray60")) +
+    labs(title = paste("Descomposición de la variabilidad -", var),
+         x = "Fuente de variación",
+         y = "% de variabilidad") +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p)  # Muestra cada gráfico en una ventana separada
+}
+
+
+
+################ Proporción de varianza explicada ####################
+############ Por tratamiento individual
+
+modelo <- aov(Brix ~ Tratamiento + Replica, data = datos)
+resumen <- summary(modelo)[[1]]
+
+SS_trat <- resumen["Tratamiento", "Sum Sq"]
+SS_total <- sum(resumen[,"Sum Sq"])
+
+eta2 <- SS_trat / SS_total
+eta2
+
+
+# Proporción de varianza explicada ajustada 
+
+df_trat <- resumen["Tratamiento", "Df"]
+MS_error <- resumen["Residuals", "Mean Sq"]
+omega2 <- (SS_trat - df_trat * MS_error) / (SS_total + MS_error)
+omega2
+
+
+df_var <- data.frame(
+  Fuente = c("Tratamiento", "Error"),
+  Varianza = c(SS_trat, resumen["Residuals", "Sum Sq"])
+)
+
+df_var$Pct <- df_var$Varianza / sum(df_var$Varianza) * 100
+
+ggplot(df_var, aes(x = Fuente, y = Pct, fill = Fuente)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", Pct)), vjust = -0.5) +
+  labs(title = "Porcentaje de varianza explicada vs. residual",
+       y = "% de variabilidad", x = "") +
+  theme_minimal(base_size = 14)
+
+##############################--En bucle:
+
+# ============================================
+# ANÁLISIS AUTOMATIZADO DE VARIABILIDAD
+# ============================================
+
+# Variables a analizar
+variables <- c("Brix", "Humedad", "Pol", "Pureza")
+
+# Crear una lista vacía para almacenar resultados
+resultados <- list()
+
+for (var in variables) {
+  
+  # Construir fórmula del modelo
+  formula <- as.formula(paste(var, "~ Tratamiento + Replica"))
+  modelo <- aov(formula, data = datos)
+  resumen <- summary(modelo)[[1]]
+  
+  # Extraer sumas de cuadrados
+  SS_trat <- resumen["Tratamiento", "Sum Sq"]
+  SS_error <- resumen["Residuals", "Sum Sq"]
+  SS_total <- sum(resumen[,"Sum Sq"])
+  
+  # Extraer grados de libertad y medias cuadráticas
+  df_trat <- resumen["Tratamiento", "Df"]
+  MS_error <- resumen["Residuals", "Mean Sq"]
+  
+  # Medidas descriptivas
+  media_general <- mean(datos[[var]], na.rm = TRUE)
+  
+  # Indicadores
+  eta2 <- SS_trat / SS_total
+  omega2 <- (SS_trat - df_trat * MS_error) / (SS_total + MS_error)
+  R2 <- 1 - SS_error / SS_total
+  CV <- sqrt(MS_error) / media_general * 100
+  
+  # Guardar resultados
+  resultados[[var]] <- data.frame(
+    Variable = var,
+    Eta2 = round(eta2, 4),
+    Omega2 = round(omega2, 4),
+    R2 = round(R2, 4),
+    CV_Pct = round(CV, 2)
+  )
+}
+
+# Combinar todos los resultados en una sola tabla
+tabla_resultados <- do.call(rbind, resultados)
+tabla_resultados
+
+# ============================================
+# INTERPRETACIÓN GENERAL
+# ============================================
+# Eta2  -> % de varianza explicada (0.01=pequeño, 0.06=medio, 0.14=grande)
+# Omega2-> Efecto real ajustado del tratamiento
+# R2    -> Proporción total explicada por el modelo
+# CV_Pct-> Precisión experimental (<10% excelente, 10-20% aceptable, >20% pobre)
+
+
+
+
+cv.model(anova_Brix)
+
+
+
