@@ -1,0 +1,106 @@
+#########################--Detección de potencia estadística del ANOVA--######################
+## Una sola variable:
+
+# Variable
+var <- "Brix"
+
+# Medias por tratamiento
+medias <- aggregate(Brix ~ Tratamiento, data = datos, FUN = mean)
+
+# Número de repeticiones por tratamiento
+n_rep <- table(datos$Tratamiento)
+media_total <- mean(datos$Brix)
+
+# Suma de cuadrados del tratamiento
+medias$SS_tratamiento <- n_rep * (medias$Brix - media_total)^2
+SS_trat <- sum(medias$SS_tratamiento)
+
+# Suma de cuadrados total
+SS_total <- sum((datos$Brix - media_total)^2)
+
+# Suma de cuadrados del error (residual)
+SS_error <- SS_total - SS_trat
+
+# Tamaño del efecto f
+f <- sqrt(SS_trat / SS_error)
+
+# Número de tratamientos y réplicas (tomamos el mínimo si hay desequilibrio)
+k <- length(unique(datos$Tratamiento))
+n <- min(n_rep)
+
+# Calcular potencia
+potencia <- pwr.anova.test(k = k, n = n, f = f, sig.level = 0.15)$power
+
+# Mostrar resultados
+resultados_Brix <- data.frame(
+  Variable = var,
+  SS_tratamiento = SS_trat,
+  SS_error = SS_error,
+  f = f,
+  n_tratamientos = k,
+  n_replicas = n,
+  power = potencia
+)
+
+print(resultados_Brix)
+
+
+
+####################--En bucle:
+
+
+# Lista de variables
+variables <- c("Brix", "Pol", "Humedad", "Pureza")
+
+# Inicializamos un data frame para guardar resultados
+resultados <- data.frame()
+
+for (var in variables) {
+  
+  # Verificar si la variable existe en los datos
+  if (!(var %in% names(datos))) {
+    warning(paste("La variable", var, "no existe en 'datos'. Se omite."))
+    next
+  }
+  
+  # Medias por tratamiento
+  medias <- aggregate(datos[[var]] ~ Tratamiento, data = datos, FUN = mean)
+  
+  # Número de repeticiones por tratamiento
+  n_rep <- table(datos$Tratamiento)
+  media_total <- mean(datos[[var]])
+  
+  # Suma de cuadrados del tratamiento
+  medias$SS_tratamiento <- n_rep * (medias[[2]] - media_total)^2
+  SS_trat <- sum(medias$SS_tratamiento)
+  
+  # Suma de cuadrados total
+  SS_total <- sum((datos[[var]] - media_total)^2)
+  
+  # Suma de cuadrados del error
+  SS_error <- SS_total - SS_trat
+  
+  # Tamaño del efecto f
+  f <- sqrt(SS_trat / SS_error)
+  
+  # Número de tratamientos y réplicas (mínimo si hay desequilibrio)
+  k <- length(unique(datos$Tratamiento))
+  n <- min(n_rep)
+  
+  # Calcular potencia
+  potencia <- pwr.anova.test(k = k, n = n, f = f, sig.level = 0.15)$power
+  
+  # Guardar resultados
+  resultados <- rbind(resultados,
+                      data.frame(
+                        Variable = var,
+                        SS_tratamiento = SS_trat,
+                        SS_error = SS_error,
+                        f = f,
+                        n_tratamientos = k,
+                        n_replicas = n,
+                        power = potencia
+                      ))
+}
+
+print(resultados)
