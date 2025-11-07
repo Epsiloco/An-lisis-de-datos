@@ -322,7 +322,80 @@ tabla_resultados
 
 
 
-cv.model(anova_Brix)
+
+#########################--Aporte de variabilidad según el CM--#######################################################
+
+
+variables <- c("Brix", "Humedad", "Pol", "Pureza")
+
+for (var in variables) {
+  cat("\n=====================================\n")
+  cat("Variable:", var, "\n")
+  cat("=====================================\n")
+  
+# ANDEVA
+  formula_text <- paste(var, "~ Tratamiento + Replica")
+  modelo <- aov(as.formula(formula_text), data = datos)
+  resumen <- summary(modelo)[[1]]
+  
+
+  CM_trat <- resumen["Tratamiento", "Mean Sq"]
+  CM_err  <- resumen["Residuals", "Mean Sq"]
+  SS_trat <- resumen["Tratamiento", "Sum Sq"]
+  df_trat <- resumen["Tratamiento", "Df"]
+
+  # % de variabilidad
+  total_CM <- CM_trat + CM_err
+  pct_CM_trat <- CM_trat / total_CM * 100
+  pct_CM_err  <- CM_err  / total_CM * 100
+  
+  cat(sprintf("CM Tratamiento: %.4f (%.2f%%)\n", CM_trat, pct_CM_trat))
+  cat(sprintf("CM Error: %.4f (%.2f%%)\n", CM_err, pct_CM_err))
+  
+
+  medias <- aggregate(datos[[var]] ~ Tratamiento, data = datos, FUN = mean)
+  colnames(medias)[2] <- "Media"
+  media_general <- mean(datos[[var]], na.rm = TRUE)
+  n_rep <- as.numeric(table(datos$Tratamiento))
+  
+
+  medias$CM_trat_ind <- (n_rep * (medias$Media - media_general)^2) / df_trat
+  total_CM_trat <- sum(medias$CM_trat_ind)
+  medias$Pct_CM_trat <- medias$CM_trat_ind / total_CM_trat * 100
+  
+  print(medias[, c("Tratamiento", "Media", "CM_trat_ind", "Pct_CM_trat")])
+  
+
+  #Gráficos
+  p1 <- ggplot(medias, aes(x = Tratamiento, y = Pct_CM_trat, fill = Tratamiento)) +
+    geom_bar(stat = "identity", color = "black") +
+    geom_text(aes(label = round(Pct_CM_trat, 1)), vjust = -0.5, size = 4) +
+    labs(title = paste("Aporte a la variación media (CM) del factor Tratamiento -", var),
+         y = "% de la variación del Tratamiento",
+         x = "Tratamiento") +
+    theme_minimal(base_size = 13) +
+    theme(legend.position = "none")
+  print(p1)
+  
+
+  df_cm <- data.frame(
+    Fuente = c("Tratamiento", "Error"),
+    CM = c(CM_trat, CM_err),
+    Porcentaje = c(pct_CM_trat, pct_CM_err)
+  )
+  
+  p2 <- ggplot(df_cm, aes(x = Fuente, y = Porcentaje, fill = Fuente)) +
+    geom_bar(stat = "identity", color = "black") +
+    geom_text(aes(label = sprintf("%.1f%%", Porcentaje)), vjust = -0.5, size = 4) +
+    scale_fill_manual(values = c("Tratamiento" = "darkgreen", "Error" = "firebrick")) +
+    labs(title = paste("Comparación de CM (Tratamiento vs Error) -", var),
+         y = "% de la variación media total (CM)",
+         x = "") +
+    theme_minimal(base_size = 13) +
+    theme(legend.position = "none")
+  print(p2)
+}
+
 
 
 
