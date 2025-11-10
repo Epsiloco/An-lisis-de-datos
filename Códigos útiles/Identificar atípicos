@@ -19,3 +19,74 @@ tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
 datos %>%
   group_by(Tratamiento) %>%
   identify_outliers(Total_Plantas)
+
+
+
+
+# Bucle:
+##############################################################
+# Conversión de variables + Detección y eliminación de outliers
+##############################################################
+
+library(tidyverse)
+
+# Variables a analizar
+vars_num <- c("Rendimiento", "Pol")  # agregar más si quieres
+trat_var <- "Tratamiento"
+
+# -----------------------------
+# Convertir variables
+# -----------------------------
+datos[vars_num] <- lapply(datos[vars_num], as.numeric)      # numéricas
+datos[[trat_var]] <- as.factor(datos[[trat_var]])           # categórica
+
+# -----------------------------
+# Detectar y eliminar outliers
+# -----------------------------
+# Inicializar resumen de outliers
+outliers_resumen <- data.frame()
+filas_outliers <- c()
+
+# Bucle por variable
+for(v in vars_num){
+  # Detectar outliers por tratamiento usando boxplot.stats
+  out_list <- tapply(datos[[v]], datos[[trat_var]], function(x) boxplot.stats(x)$out)
+  
+  # Crear resumen legible
+  if(length(unlist(out_list)) > 0){
+    temp <- data.frame(
+      Variable = v,
+      Tratamiento = rep(names(out_list), sapply(out_list, length)),
+      Valor = unlist(out_list)
+    )
+    outliers_resumen <- rbind(outliers_resumen, temp)
+    
+    # Guardar índices de filas a eliminar
+    for(t in names(out_list)){
+      idx <- which(datos[[trat_var]] == t & datos[[v]] %in% out_list[[t]])
+      filas_outliers <- c(filas_outliers, idx)
+    }
+  }
+  
+  # Generar boxplot
+  boxplot(datos[[v]] ~ datos[[trat_var]],
+          main = paste("Boxplot de", v, "por", trat_var),
+          xlab = trat_var, ylab = v,
+          col = "skyblue", border = "black",
+          outline = TRUE)
+}
+
+# -----------------------------
+# Mostrar y eliminar outliers
+# -----------------------------
+if(nrow(outliers_resumen) > 0){
+  cat("\n--- Outliers detectados ---\n")
+  print(outliers_resumen)
+  
+  # Eliminar outliers
+  filas_outliers <- sort(unique(filas_outliers))
+  datos <- datos[-filas_outliers, ]
+  cat("\nOutliers eliminados. Filas eliminadas:", length(filas_outliers), "\n")
+} else {
+  cat("\nNo se detectaron outliers.\n")
+}
