@@ -1,0 +1,134 @@
+excel_sheets("Zulia NIR-PA 1er tercio.xlsx")
+datos<- read_excel("Zulia NIR-PA 1er tercio.xlsx", sheet = 3)
+attach(datos)
+view(datos)
+names(datos)
+str(datos)
+head(datos)
+tail(datos)
+
+# Excluir T0 y T1
+
+datos <- subset(datos, !(Tratamiento %in% c("T0", "T1")))
+
+
+Medias<- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(media_Brix = mean(Brix, na.rm =TRUE),
+            media_Pol = mean(Pol, na.rm = T),
+            media_Humedad = mean(Humedad, na.rm = T),
+            media_Pureza = mean(Pureza, na.rm = T))
+
+Medias
+
+
+##########################--Aleatorización estratificada--##########################################3
+
+#Alternativa de aleatorización según el valor de un índice promedio
+
+# Datos con medias
+medias <- data.frame(
+  Tratamiento = c("T2","T3","T4","T5","T6","T7"),
+  media_Brix = c(21.6, 21.9, 21.0, 21.7, 21.4, 21.7),
+  media_Pol = c(20.5, 20.7, 19.0, 19.5, 19.4, 19.3),
+  media_Humedad = c(69.0, 68.9, 70.0, 69.1, 69.5, 69.9),
+  media_Pureza = c(95.5, 94.7, 90.4, 90.1, 90.5, 89.0)
+)
+
+# Calcular índice promedio y crear estratos
+medias <- medias %>%
+  mutate(indice = rowMeans(select(., media_Brix, media_Pol, media_Humedad, media_Pureza))) %>%
+  mutate(grupo = cut(indice,
+                     breaks = quantile(indice, probs = c(0, 1/3, 2/3, 1)),
+                     labels = c("bajo","medio","alto"),
+                     include.lowest = TRUE))
+
+# Aleatorización estratificada por réplica
+set.seed(42) 
+replicas <- 3
+resultado <- data.frame()
+
+for(r in 1:replicas){
+  aleatorio <- medias %>%
+    group_by(grupo) %>%
+    summarise(Trat_aleatorio = sample(Tratamiento), .groups = "drop") %>%
+    mutate(Replica = r) %>%
+    select(Replica, grupo, Trat_aleatorio)
+  
+  resultado <- rbind(resultado, aleatorio)
+}
+
+resultado <- resultado %>% arrange(Replica, grupo)
+resultado
+
+
+
+
+
+
+
+
+
+# Por cada variable de respuesta
+
+datos <- tribble(
+  ~Tratamiento, ~media_Brix, ~media_Pol, ~media_Humedad, ~media_Pureza,
+  "T2", 21.6, 20.5, 69.0, 95.5,
+  "T3", 21.9, 20.7, 68.9, 94.7,
+  "T4", 21.0, 19.0, 70.0, 90.4,
+  "T5", 21.7, 19.5, 69.1, 90.1,
+  "T6", 21.4, 19.4, 69.5, 90.5,
+  "T7", 21.7, 19.3, 69.9, 89.0
+)
+
+variables <- c("media_Brix", "media_Pol", "media_Pureza")
+
+
+set.seed(123)  # reproducibilidad
+
+replicas <- 1:3  # número de réplicas
+
+resultado <- list()  # lista para guardar resultados por variable
+
+for (var in variables) {
+  
+
+  datos_temp <- datos %>% select(Tratamiento, all_of(var))
+  names(datos_temp)[2] <- "valor"
+  
+  datos_temp <- datos_temp %>%
+    mutate(grupo = ntile(valor, 3)) %>%
+    mutate(grupo = case_when(
+      grupo == 1 ~ "bajo",
+      grupo == 2 ~ "medio",
+      grupo == 3 ~ "alto"
+    ))
+  
+  # Aleatorización
+  plan <- data.frame()
+  for (r in replicas) {
+    for (g in unique(datos_temp$grupo)) {
+      tratamientos_grupo <- datos_temp %>% filter(grupo == g) %>% pull(Tratamiento)
+      tratamientos_aleatorios <- sample(tratamientos_grupo)
+      plan <- rbind(plan, data.frame(Replica = r,
+                                     Grupo = g,
+                                     Trat_aleatorio = tratamientos_aleatorios))
+    }
+  }
+  
+
+  resultado[[var]] <- plan %>% arrange(Replica, Grupo)
+}
+
+# Tratamientos aleatorizados
+resultado$media_Brix
+resultado$media_Pol
+resultado$media_Pureza
+
+
+
+
+
+
+
+
