@@ -1,0 +1,713 @@
+# Lista de paquetes requeridos
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest", "pwr", "DataExplorer")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+excel_sheets("Ensayo de Distanciamientos y Dosis.xlsx")
+datos<- read_excel("Ensayo de Distanciamientos y Dosis.xlsx", sheet = 3)
+attach(datos)
+view(datos)
+
+names(datos)
+
+# Medias por distanciamiento
+medias1<- datos %>%
+  group_by(Distanciamiento) %>%
+  summarise(media_Altura = mean(Altura, na.rm = T),
+            media_Diametro = mean(Diametro, na.rm = T),
+            media_tallos_macolla = mean(Tallos_macolla, na.rm = T),
+            media_Poblacion = mean(Poblacion))
+medias1
+
+
+# Medias por dosis
+names(datos)
+medias2<- datos %>%
+  group_by(Dosis) %>%
+  summarise(media_Altura = mean(Altura, na.rm = T),
+            media_Diametro = mean(Diametro, na.rm = T),
+            media_tallos_macolla = mean(Tallos_macolla, na.rm = T),
+            media_Poblacion = mean(Poblacion))
+medias2
+
+
+# Medias por tratamiento
+names(datos)
+medias<- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(media_Altura = mean(Altura, na.rm = T),
+            media_Diametro = mean(Diametro, na.rm = T),
+            media_tallos_macolla = mean(Tallos_macolla, na.rm = T),
+            media_TML = mean(TML, na.rm = T),
+            media_Poblacion = mean(Poblacion))
+medias
+
+
+# ANDEVA para arreglo bifactorial combinatorio
+names(datos)
+
+factores <- c("Distanciamiento", "Dosis")
+bloque <- "Replica"
+
+# Variables de respuesta
+respuestas <- c("Altura", "Diametro", "Tallos_macolla", "Poblacion", "TML")
+
+# Convertir factores y respuestas
+for(f in factores) datos[[f]] <- as.factor(datos[[f]])
+datos[[bloque]] <- as.factor(datos[[bloque]])
+
+for(v in respuestas) datos[[v]] <- as.numeric(datos[[v]])
+
+# -----------------------------
+#  ANDEVA trifactorial con bloque
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("📊 ANDEVA trifactorial para:", var, "\n")
+  cat("============================================\n")
+  
+  formula_anidada <- paste(factores, collapse="*")
+  formula <- as.formula(paste0("`", var, "` ~ ", bloque, " + ", formula_anidada))
+  modelo <- aov(formula, data=datos)
+  
+  # Mostrar ANDEVA
+  print(summary(modelo))
+  
+  # Coeficiente de variación
+  cv <- (sqrt(mean(modelo$residuals^2)) / mean(datos[[var]], na.rm=TRUE))*100
+  cat("Coeficiente de variación (CV%) =", round(cv,2), "\n")
+  
+  # -----------------------------
+  #  Supuestos
+  # -----------------------------
+  
+  # Normalidad de residuos
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  if(length(unique(modelo$residuals)) > 1){
+    sw <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(sw)
+  }
+  
+  # Residuos vs valores ajustados
+  plot(modelo$fitted.values, modelo$residuals,
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Homogeneidad de varianzas (Levene y Bartlett)
+  formula_interaccion <- as.formula(paste0("`", var, "` ~ interaction(", paste(factores, collapse=":"), ")"))
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    tryCatch(print(bartlett.test(formula_interaccion, data=datos)),
+             error=function(e) cat("Error Bartlett:", e$message, "\n"))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    tryCatch(print(leveneTest(formula_interaccion, data=datos, center="median")),
+             error=function(e) cat("Error Levene:", e$message, "\n"))
+  }
+  
+  # Diagnóstico gráfico completo
+  par(mfrow=c(2,2))
+  plot(modelo)
+  par(mfrow=c(1,1))
+  
+  # Verificación con performance
+  performance::check_normality(modelo)
+  performance::check_model(modelo)
+}
+
+# -----------------------------
+#  Pruebas de medias múltiples
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("Pruebas de medias para:", var, "\n")
+  cat("============================================\n")
+  
+  # Interacción completa
+  datos$interaccion_completa <- interaction(datos[,factores], sep="_")
+  modelo_interaccion <- aov(as.formula(paste0("`", var, "` ~ interaccion_completa")), data=datos)
+  
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nTukey HSD - Interacción completa:\n")
+    HSD.test(modelo_interaccion, "interaccion_completa", console=TRUE)
+    
+    cat("\nScott-Knott - Interacción completa:\n")
+    try({
+      sk <- SK(modelo_interaccion, which="interaccion_completa", dispersion="se", sig.level=0.15)
+      print(summary(sk))
+    })
+  }
+  
+  # Factores individuales
+  for(f in factores){
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    
+    cat("\nTukey HSD - Factor", f, ":\n")
+    HSD.test(modelo_factor, f, console=TRUE)
+    
+    cat("\nScott-Knott - Factor", f, ":\n")
+    try({
+      sk_f <- SK(modelo_factor, which=f, dispersion="se", sig.level=0.15)
+      print(summary(sk_f))
+    })
+  }
+  
+  datos$interaccion_completa <- NULL
+}
+
+# -----------------------------
+#  Gráficos por variable y factor
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("Gráficos para:", var, "\n")
+  cat("============================================\n")
+  
+  # Gráficos por factor individual
+  for(f in factores){
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop")
+    
+    # Barras con SE
+    p_bar <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
+      geom_bar(stat="identity", fill="gray70", color="black") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      labs(title=paste("Barras con SE -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_bar)
+    
+    # Puntos con SE
+    p_point <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
+      geom_point(size=3, color="steelblue") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      labs(title=paste("Puntos con SE -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_point)
+    
+    # Boxplot
+    p_box <- ggplot(datos, aes(x=.data[[f]], y=.data[[var]])) +
+      geom_boxplot(fill="lightblue") +
+      labs(title=paste("Boxplot -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_box)
+  }
+  
+  # Gráficos de interacción (primeros dos factores)
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
+    
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop") %>%
+      ungroup() %>%
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]]))
+    
+    # Línea de interacción
+    p_line <- ggplot(resumen_inter, aes(x=.data[[f1]], y=media, group=.data[[f2]], color=.data[[f2]])) +
+      geom_line(size=1.2) + geom_point(size=3) +
+      labs(title=paste("Interacción líneas -", f1,"x",f2,"-", var), x=f1, y=var, color=f2) +
+      theme_minimal()
+    print(p_line)
+    
+    # Boxplot de interacción
+    p_box_inter <- ggplot(datos, aes(x=interaction(.data[[f1]], .data[[f2]]), y=.data[[var]])) +
+      geom_boxplot(fill="lightgreen") +
+      labs(title=paste("Boxplot interacción -", var), x="Interacción", y=var) +
+      theme_minimal()
+    print(p_box_inter)
+  }
+}
+
+
+
+
+# ==========================================================
+#  Gráficos de líneas de error con letras de Tukey
+# ==========================================================
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat(" Gráficos de líneas de error (Tukey) para:", var, "\n")
+  cat("============================================\n")
+  
+  #  Gráficos por factor individual
+  for(f in factores){
+    # Modelo y prueba de Tukey
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    tukey <- HSD.test(modelo_factor, f, group=TRUE)
+    
+    # --- Extraer tabla de grupos y renombrar columnas de forma segura ---
+    letras <- tukey$groups
+    letras$Nivel <- rownames(tukey$groups)
+    
+    colnames(letras) <- tolower(colnames(letras))
+    if("means" %in% colnames(letras)){
+      colnames(letras)[colnames(letras) == "means"] <- "media_tukey"
+    } else if("mean" %in% colnames(letras)){
+      colnames(letras)[colnames(letras) == "mean"] <- "media_tukey"
+    }
+    if("groups" %in% colnames(letras)){
+      colnames(letras)[colnames(letras) == "groups"] <- "letra"
+    }
+    
+    # --- Resumen de medias y SE ---
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(
+        media = mean(.data[[var]], na.rm=TRUE),
+        se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+        .groups="drop"
+      ) %>%
+      rename(Nivel = !!f)
+    
+    datos_tukey <- left_join(resumen, letras, by="Nivel")
+    
+    # --- Gráfico ---
+    p_linea <- ggplot(datos_tukey, aes(x=Nivel, y=media, group=1)) +
+      geom_line(size=1, color="steelblue") +
+      geom_point(size=3, color="darkblue") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2, color="gray40") +
+      geom_text(aes(label=letra, y=media + se + 0.05*max(media, na.rm=TRUE)),
+                vjust=0, fontface="bold", color="black", size=4) +
+      labs(title=paste("Líneas de error -", f, "-", var),
+           x=f, y=paste(var, "(media ± SE)")) +
+      theme_minimal(base_size=13)
+    
+    print(p_linea)
+  }
+  
+  #  Gráficos para la interacción entre factores
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
+    
+    # Modelo y prueba de Tukey
+    datos$interaccion <- interaction(datos[[f1]], datos[[f2]])
+    modelo_inter <- aov(as.formula(paste0("`", var, "` ~ interaccion")), data=datos)
+    tukey_inter <- HSD.test(modelo_inter, "interaccion", group=TRUE)
+    
+    letras_inter <- tukey_inter$groups
+    letras_inter$Interaccion <- rownames(tukey_inter$groups)
+    
+    colnames(letras_inter) <- tolower(colnames(letras_inter))
+    if("means" %in% colnames(letras_inter)){
+      colnames(letras_inter)[colnames(letras_inter) == "means"] <- "media_tukey"
+    } else if("mean" %in% colnames(letras_inter)){
+      colnames(letras_inter)[colnames(letras_inter) == "mean"] <- "media_tukey"
+    }
+    if("groups" %in% colnames(letras_inter)){
+      colnames(letras_inter)[colnames(letras_inter) == "groups"] <- "letra"
+    }
+    
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(
+        media = mean(.data[[var]], na.rm=TRUE),
+        se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+        .groups="drop"
+      ) %>%
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]]))
+    
+    datos_inter_tukey <- left_join(resumen_inter, letras_inter, by="Interaccion")
+    
+    # --- Gráfico ---
+    p_linea_inter <- ggplot(datos_inter_tukey, aes(x=.data[[f1]], y=media, color=.data[[f2]], group=.data[[f2]])) +
+      geom_line(size=1) +
+      geom_point(size=3) +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      geom_text(aes(label=letra, y=media + se + 0.05*max(media, na.rm=TRUE)),
+                vjust=0, fontface="bold", size=3.5, show.legend=FALSE) +
+      labs(title=paste("Interacción", f1, "x", f2, "-", var),
+           x=f1, y=paste(var, "(media ± SE)"), color=f2) +
+      theme_minimal(base_size=13)
+    
+    print(p_linea_inter)
+    
+    datos$interaccion <- NULL
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Resumen:
+
+library(officer)
+library(rvg)
+library(ggplot2)
+library(agricolae)
+library(dplyr)
+library(flextable)
+
+
+doc <- read_docx()
+
+# Iterar sobre cada variable de respuesta
+for(var in respuestas){
+  
+  # ---- ANDEVA ----
+  formula_anidada <- paste(factores, collapse="*")
+  formula <- as.formula(paste0("`", var, "` ~ ", bloque, " + ", formula_anidada))
+  modelo <- aov(formula, data=datos)
+  tabla_anova <- summary(modelo)[[1]]  # Extraer tabla ANOVA
+  
+  # Convertir a data.frame y limpiar nombres
+  df_anova <- as.data.frame(tabla_anova)
+  df_anova$Fuente <- rownames(df_anova)
+  df_anova <- df_anova[, c("Fuente", "Df", "Sum Sq", "Mean Sq", "F value", "Pr(>F)")]
+  colnames(df_anova) <- c("Fuente", "gl", "Suma de Cuadrados", "Media de Cuadrados", "F", "Valor_p")
+  
+  # ---- Flextable profesional ----
+  ft <- flextable(df_anova) %>%
+    theme_vanilla() %>%
+    set_header_labels(Fuente="Fuente de Variación",
+                      gl="gl",
+                      Suma.de.Cuadrados="Suma de Cuadrados",
+                      Media.de.Cuadrados="Media de Cuadrados",
+                      F="F",
+                      Valor_p="Valor p") %>%
+    autofit() %>%
+    bold(part="header") %>%
+    flextable::border_outer(part="all", border = fp_border(color="black", width=1)) %>%
+    flextable::border_inner_h(part="body", border = fp_border(color="gray", width=0.5)) %>%
+    flextable::border_inner_v(part="body", border = fp_border(color="gray", width=0.5)) %>%
+    flextable::bg(part="header", bg="lightblue") %>%
+    flextable::align(j=2:6, align="center", part="all")
+  
+  # ---- Agregar título y tabla al Word ----
+  doc <- body_add_par(doc, paste("📊 ANDEVA para:", var), style = "heading 1")
+  doc <- body_add_flextable(doc, ft)
+  doc <- body_add_par(doc, "", style="Normal")  # Espacio entre tablas
+}
+
+# Guardar documento
+output_file <- "Resumen_ANDEVA_Profesional.docx"
+print(doc, target = output_file)
+cat("✅ Informe con tablas ANDEVA generado correctamente:", output_file, "\n")
+
+
+
+
+
+
+################### Desdoblamientos y contrastes ##############################
+
+# Modelo lineal (ANOVA de 2 vías o bifactorial)
+
+#Altura
+names(datos)
+m0 <- lm(Altura ~ Distanciamiento*Dosis, data = datos)
+
+influenceIndexPlot(m0,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+names(datos)
+emm_AB <- emmeans(m0, ~ Distanciamiento|Dosis) # medias ajustadas
+
+cld(emmeans(m0, ~ Distanciamiento|Dosis),type="response", 
+    alpha   = 0.15, Letters = letters, 
+    adjust  = "tukey", reversed=T) 
+
+
+#Diametro
+names(datos)
+m0 <- lm(Diametro ~ Distanciamiento*Dosis, data = datos)
+
+influenceIndexPlot(m0,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+names(datos)
+emm_AB <- emmeans(m0, ~ Distanciamiento|Dosis) # medias ajustadas
+
+cld(emmeans(m0, ~ Distanciamiento|Dosis),type="response", 
+    alpha   = 0.15, Letters = letters, 
+    adjust  = "tukey", reversed=T) 
+
+
+#Tallos/macolla
+names(datos)
+m0 <- lm(Tallos_macolla ~ Distanciamiento*Dosis, data = datos)
+
+influenceIndexPlot(m0,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+names(datos)
+emm_AB <- emmeans(m0, ~ Distanciamiento|Dosis) # medias ajustadas
+
+cld(emmeans(m0, ~ Distanciamiento|Dosis),type="response", 
+    alpha   = 0.15, Letters = letters, 
+    adjust  = "tukey", reversed=T) 
+
+
+# Población
+names(datos)
+m0 <- lm(Poblacion ~ Distanciamiento*Dosis, data = datos)
+
+influenceIndexPlot(m0,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+names(datos)
+emm_AB <- emmeans(m0, ~ Distanciamiento|Dosis) # medias ajustadas
+
+cld(emmeans(m0, ~ Distanciamiento|Dosis),type="response", 
+    alpha   = 0.15, Letters = letters, 
+    adjust  = "tukey", reversed=T) 
+
+
+#TML
+names(datos)
+m0 <- lm(TML ~ Distanciamiento*Dosis, data = datos)
+
+influenceIndexPlot(m0,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+names(datos)
+emm_AB <- emmeans(m0, ~ Distanciamiento|Dosis) # medias ajustadas
+
+cld(emmeans(m0, ~ Distanciamiento|Dosis),type="response", 
+    alpha   = 0.15, Letters = letters, 
+    adjust  = "tukey", reversed=T) 
+
+
+
+#Contrastes entre tratamientos
+# Altura
+names(datos)
+modelo_altura1 <- aov(Altura ~ Distanciamiento, data = datos)
+modelo_altura2 <- aov(Altura ~ Dosis, data = datos)
+
+TukeyHSD(modelo_altura1); TukeyHSD(modelo_altura2)
+
+# Diametro
+names(datos)
+modelo_diametro1 <- aov(Diametro ~ Distanciamiento, data = datos)
+modelo_diametro2 <- aov(Diametro ~ Dosis, data = datos)
+
+TukeyHSD(modelo_diametro1); TukeyHSD(modelo_diametro2)
+
+# Tallos/macolla
+names(datos)
+modelo_tallos1 <- aov(Tallos_macolla ~ Distanciamiento, data = datos)
+modelo_tallos2 <- aov(Tallos_macolla ~ Dosis, data = datos)
+
+TukeyHSD(modelo_tallos1); TukeyHSD(modelo_tallos2)
+
+
+# Población
+names(datos)
+modelo_poblacion1 <- aov(Poblacion ~ Distanciamiento, data = datos)
+modelo_poblacion2 <- aov(Poblacion ~ Dosis, data = datos)
+
+TukeyHSD(modelo_poblacion1); TukeyHSD(modelo_poblacion2)
+
+# TML
+names(datos)
+modelo_TML1 <- aov(TML ~ Distanciamiento, data = datos)
+modelo_TML2 <- aov(TML ~ Dosis, data = datos)
+
+TukeyHSD(modelo_TML1); TukeyHSD(modelo_TML2)
+
+
+
+
+# ANDEVA para arreglo bifactorial combinatorio y gráfico de líneas de error
+
+names(datos)
+
+factores <- c("Distanciamiento", "Dosis")
+bloque <- "Replica"
+
+# Variables de respuesta
+respuestas <- c("Altura", "Diametro", "Tallos_macolla", "Poblacion", "TML")
+
+# Convertir factores y respuestas
+for(f in factores) datos[[f]] <- as.factor(datos[[f]])
+datos[[bloque]] <- as.factor(datos[[bloque]])
+
+for(v in respuestas) datos[[v]] <- as.numeric(datos[[v]])
+
+
+# ANDEVA
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("ANDEVA para:", var, "\n")
+  cat("============================================\n")
+  
+  # ANDEVA
+  formula_anidada <- paste(factores, collapse="*")
+  formula <- as.formula(paste0("`", var, "` ~ ", bloque, " + ", formula_anidada))
+  modelo <- aov(formula, data=datos)
+  print(summary(modelo))
+  
+  # Pruebas de Tukey para factores individuales con α=0.15
+  tukey_results <- list()
+  for(f in factores){
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    tukey_factor <- HSD.test(modelo_factor, f, alpha=0.15, console=FALSE)
+    tukey_results[[f]] <- tukey_factor
+  }
+  
+  # Prueba de Tukey para interacción con α=0.15
+  datos$interaccion_completa <- interaction(datos[,factores], sep="_")
+  modelo_interaccion <- aov(as.formula(paste0("`", var, "` ~ interaccion_completa")), data=datos)
+  tukey_interaccion <- HSD.test(modelo_interaccion, "interaccion_completa", alpha=0.15, console=FALSE)
+  
+  # -----------------------------
+  # GRÁFICOS DE PUNTOS CON SE Y LETRAS DE TUKEY
+  # -----------------------------
+  
+  # 1. Gráficos para factores individuales
+  for(f in factores){
+    # Calcular medias y SE
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop")
+    
+    # Agregar letras de Tukey
+    resumen <- resumen %>%
+      left_join(
+        data.frame(
+          nivel = rownames(tukey_results[[f]]$groups),
+          grupo = tukey_results[[f]]$groups[,2]
+        ), 
+        by = c(setNames("nivel", f))
+      )
+    
+    # Gráfico de puntos con SE y letras de Tukey
+    p_point <- ggplot(resumen, aes(x = .data[[f]], y = media)) +
+      geom_point(size = 4, color = "steelblue") +
+      geom_errorbar(aes(ymin = media - se, ymax = media + se), 
+                    width = 0.1, color = "steelblue", size = 0.8) +
+      geom_text(aes(label = grupo, y = media + se + max(media)*0.02), 
+                size = 5, fontface = "bold") +
+      labs(title = paste(var, "-", f),
+           subtitle = "Letras diferentes indican diferencias significativas (Tukey, α=0.15)",
+           x = f, y = var) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = element_text(hjust = 0.5, size = 10),
+            axis.title = element_text(size = 12),
+            axis.text = element_text(size = 10))
+    
+    print(p_point)
+  }
+  
+  # 2. Gráfico para interacción - CORREGIDO
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
+    
+    # Calcular medias y SE para interacción
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(media = mean(.data[[var]], na.rm = TRUE),
+                se = sd(.data[[var]], na.rm = TRUE) / sqrt(n()),
+                .groups = "drop") %>%
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]], sep = " : "))
+    
+    # Agregar letras de Tukey para interacción - CORREGIDO
+    tukey_groups <- data.frame(
+      Interaccion = rownames(tukey_interaccion$groups),
+      grupo = tukey_interaccion$groups[,2]
+    )
+    
+    # Asegurar que los nombres coincidan
+    tukey_groups$Interaccion <- gsub("_", " : ", tukey_groups$Interaccion)
+    
+    resumen_inter <- resumen_inter %>%
+      left_join(tukey_groups, by = "Interaccion")
+    
+    # VERIFICAR SI LAS LETRAS SE UNIERON CORRECTAMENTE
+    cat("\nVerificación letras Tukey para interacción -", var, ":\n")
+    print(resumen_inter[, c(f1, f2, "media", "grupo")])
+    
+    # Gráfico de puntos para interacción - CORREGIDO
+    p_inter <- ggplot(resumen_inter, aes(x = .data[[f1]], y = media, 
+                                         color = .data[[f2]], group = .data[[f2]])) +
+      geom_point(size = 4, position = position_dodge(0.3)) +
+      geom_errorbar(aes(ymin = media - se, ymax = media + se), 
+                    width = 0.15, position = position_dodge(0.3), size = 0.8) +
+      geom_text(aes(label = grupo, y = media + se + max(media)*0.03),
+                position = position_dodge(0.3), size = 4, fontface = "bold", 
+                show.legend = FALSE) +
+      labs(title = paste(var, "- Interacción", f1, "×", f2),
+           subtitle = "Letras diferentes indican diferencias significativas (Tukey, α=0.15)",
+           x = f1, y = var, color = f2) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = element_text(hjust = 0.5, size = 10),
+            axis.title = element_text(size = 12),
+            axis.text = element_text(size = 10),
+            legend.position = "bottom")
+    
+    print(p_inter)
+    
+    # Gráfico alternativo de interacción - más claro
+    p_inter_alt <- ggplot(resumen_inter, aes(x = interaction(.data[[f1]], .data[[f2]]), y = media)) +
+      geom_point(size = 4, color = "steelblue") +
+      geom_errorbar(aes(ymin = media - se, ymax = media + se), 
+                    width = 0.1, color = "steelblue", size = 0.8) +
+      geom_text(aes(label = grupo, y = media + se + max(media)*0.02),
+                size = 4, fontface = "bold") +
+      labs(title = paste(var, "- Interacción", f1, "×", f2),
+           subtitle = "Letras diferentes indican diferencias significativas (Tukey, α=0.15)",
+           x = paste("Interacción", f1, "×", f2), y = var) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = element_text(hjust = 0.5, size = 10),
+            axis.title = element_text(size = 12),
+            axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+    
+    print(p_inter_alt)
+  }
+  
+  # Limpiar variable temporal
+  datos$interaccion_completa <- NULL
+}
