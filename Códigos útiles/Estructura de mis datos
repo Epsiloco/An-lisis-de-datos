@@ -1,0 +1,34 @@
+#Experimentos simples
+datos %>%
+  group_by(Tratamiento) %>%
+  summarise(n_replicas = n_distinct(Replica))
+
+# Análisis completo de estructura
+estructura_completa <- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(
+    n_replicas = n_distinct(Replica),
+    n_puntos_muestreo = n_distinct(Estacion),  # o Estación, Parcela, etc.
+    n_observaciones_totales = n(),
+    n_observaciones_por_replica = n() / n_distinct(Replica),
+    .groups = 'drop'
+  )
+
+print(estructura_completa)
+
+
+# Arreglo factorial
+names(datos)
+estructura_detallada <- datos %>%
+  group_by(Distanciamiento, Dosis) %>%  # Tus factores aquí
+  summarise(
+    n_replicas = n_distinct(Replica),
+    n_puntos_muestreo = n_distinct(Estacion),
+    n_observaciones_totales = n(),
+    n_observaciones_por_replica = n() / n_distinct(Replica),
+    replicas_identificadas = paste(sort(unique(Replica)), collapse = ", "),
+    puntos_muestreo_identificados = paste(sort(unique(Estacion)), collapse = ", "),
+    .groups = 'drop'
+  )
+
+print(estructura_detallada)
