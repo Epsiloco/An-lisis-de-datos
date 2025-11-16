@@ -1,1 +1,19 @@
+datos$Altura_prom <- rowMeans(datos[, c("Altura_tallo_1",
+                                        "Altura_tallo_2",
+                                        "Altura_tallo_3")],
+                              na.rm = TRUE)
+
+
+datos$Diam_prom <- rowMeans(datos[, c("Diam_1",
+                                      "Diam_2",
+                                      "Diam_3")],
+                            na.rm = TRUE)
+
+
+
+datos$Peso_prom <- rowMeans(datos[, c("Peso_1",
+                                      "Peso_2",
+                                      "Peso_3")],
+                            na.rm = TRUE)
+view(datos)
 
