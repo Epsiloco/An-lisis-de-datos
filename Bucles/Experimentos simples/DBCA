@@ -49,14 +49,12 @@ round(basicStats(variables_numericas), 2) #Estadística descriptiva
 
 # DBCA:
 # ANDEVA
+names(datos)
 
 alpha <- 0.15  
 
-# DBCA:
-# ANDEVA
-names(datos)
 tratamiento <- "Tratamiento"
-respuestas <- c("Pol", "Brix", "Humedad", "Pureza", "Rendimiento", "Fibra", "Jugo")
+respuestas <- c("Peso_Total", "Altura_prom", "Diam_prom", "Peso_prom")
 
 for (var in respuestas) {
   formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
@@ -68,10 +66,6 @@ for (var in respuestas) {
   
   print(anova(modelo))   # uso anova() en lugar de summary() para que coincida con el manual
 }
-
-
-
-
 
 
 # Verificación de supuestos
@@ -259,6 +253,59 @@ for (var in respuestas) {
 
 
 
+# Lineas de error:
+
+for (var in respuestas) {
+  
+  # Crear dataframe temporal y renombrar variable
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- "valor"
+  
+  # Asegurar factores
+  datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+  datos_temp$Replica <- factor(datos_temp$Replica)
+  
+  # Modelo ANDEVA
+  modelo <- aov(valor ~ Tratamiento + Replica, data = datos_temp)
+  
+  # --- Prueba de Tukey ---
+  tukey <- HSD.test(modelo, "Tratamiento", group = TRUE)
+  letras <- tukey$groups %>%
+    mutate(Tratamiento = rownames(tukey$groups)) %>%
+    select(Tratamiento, letra = groups)
+  
+  # --- Resumen de medias e IC95% ---
+  resumen <- datos_temp %>%
+    group_by(Tratamiento) %>%
+    summarise(
+      media = mean(valor, na.rm = TRUE),
+      sd = sd(valor, na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df = n - 1) * se,
+      IC_sup = media + qt(0.975, df = n - 1) * se,
+      .groups = "drop"
+    ) %>%
+    left_join(letras, by = "Tratamiento") %>%
+    arrange(media) %>%
+    mutate(Trat_ordenado = factor(Tratamiento, levels = Tratamiento))
+  
+  # --- Gráfico de medias ± error + letras ---
+  colores <- "steelblue"
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media)) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.15, color = "black") +
+      geom_text(aes(label = letra, y = IC_sup + 0.05 * max(media)), size = 5, vjust = 0) +
+      labs(title = paste("Medias ± IC95% con letras Tukey -", var),
+           y = var, x = "Tratamiento") +
+      theme_minimal(base_size = 14) +
+      theme(plot.title = element_text(hjust = 0.5))
+  )
+}
+
+
+#######################################################################################################################
 
 
 
