@@ -229,3 +229,162 @@ for(var in respuestas){
     print(p_box_inter)
   }
 }
+
+#############################################################################################################################
+
+# ANDEVA para arreglo bifactorial combinatorio y gráfico de líneas de error
+
+names(datos)
+
+factores <- c("Distanciamiento", "Dosis")
+bloque <- "Replica"
+
+# Variables de respuesta
+respuestas <- c("Altura", "Diametro", "Tallos_macolla", "Poblacion", "TML")
+
+# Convertir factores y respuestas
+for(f in factores) datos[[f]] <- as.factor(datos[[f]])
+datos[[bloque]] <- as.factor(datos[[bloque]])
+
+for(v in respuestas) datos[[v]] <- as.numeric(datos[[v]])
+
+
+# ANDEVA
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("ANDEVA para:", var, "\n")
+  cat("============================================\n")
+  
+  # ANDEVA
+  formula_anidada <- paste(factores, collapse="*")
+  formula <- as.formula(paste0("`", var, "` ~ ", bloque, " + ", formula_anidada))
+  modelo <- aov(formula, data=datos)
+  print(summary(modelo))
+  
+  # Pruebas de Tukey para factores individuales con α=0.15
+  tukey_results <- list()
+  for(f in factores){
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    tukey_factor <- HSD.test(modelo_factor, f, alpha=0.15, console=FALSE)
+    tukey_results[[f]] <- tukey_factor
+  }
+  
+  # Prueba de Tukey para interacción con α=0.15
+  datos$interaccion_completa <- interaction(datos[,factores], sep="_")
+  modelo_interaccion <- aov(as.formula(paste0("`", var, "` ~ interaccion_completa")), data=datos)
+  tukey_interaccion <- HSD.test(modelo_interaccion, "interaccion_completa", alpha=0.15, console=FALSE)
+  
+  # -----------------------------
+  # GRÁFICOS DE PUNTOS CON SE Y LETRAS DE TUKEY
+  # -----------------------------
+  
+  # 1. Gráficos para factores individuales
+  for(f in factores){
+    # Calcular medias y SE
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop")
+    
+    # Agregar letras de Tukey
+    resumen <- resumen %>%
+      left_join(
+        data.frame(
+          nivel = rownames(tukey_results[[f]]$groups),
+          grupo = tukey_results[[f]]$groups[,2]
+        ), 
+        by = c(setNames("nivel", f))
+      )
+    
+    # Gráfico de puntos con SE y letras de Tukey
+    p_point <- ggplot(resumen, aes(x = .data[[f]], y = media)) +
+      geom_point(size = 4, color = "steelblue") +
+      geom_errorbar(aes(ymin = media - se, ymax = media + se), 
+                    width = 0.1, color = "steelblue", size = 0.8) +
+      geom_text(aes(label = grupo, y = media + se + max(media)*0.02), 
+                size = 5, fontface = "bold") +
+      labs(title = paste(var, "-", f),
+           subtitle = "Letras diferentes indican diferencias significativas (Tukey, α=0.15)",
+           x = f, y = var) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = element_text(hjust = 0.5, size = 10),
+            axis.title = element_text(size = 12),
+            axis.text = element_text(size = 10))
+    
+    print(p_point)
+  }
+  
+  # 2. Gráfico para interacción - CORREGIDO
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
+    
+    # Calcular medias y SE para interacción
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(media = mean(.data[[var]], na.rm = TRUE),
+                se = sd(.data[[var]], na.rm = TRUE) / sqrt(n()),
+                .groups = "drop") %>%
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]], sep = " : "))
+    
+    # Agregar letras de Tukey para interacción - CORREGIDO
+    tukey_groups <- data.frame(
+      Interaccion = rownames(tukey_interaccion$groups),
+      grupo = tukey_interaccion$groups[,2]
+    )
+    
+    # Asegurar que los nombres coincidan
+    tukey_groups$Interaccion <- gsub("_", " : ", tukey_groups$Interaccion)
+    
+    resumen_inter <- resumen_inter %>%
+      left_join(tukey_groups, by = "Interaccion")
+    
+    # VERIFICAR SI LAS LETRAS SE UNIERON CORRECTAMENTE
+    cat("\nVerificación letras Tukey para interacción -", var, ":\n")
+    print(resumen_inter[, c(f1, f2, "media", "grupo")])
+    
+    # Gráfico de puntos para interacción - CORREGIDO
+    p_inter <- ggplot(resumen_inter, aes(x = .data[[f1]], y = media, 
+                                         color = .data[[f2]], group = .data[[f2]])) +
+      geom_point(size = 4, position = position_dodge(0.3)) +
+      geom_errorbar(aes(ymin = media - se, ymax = media + se), 
+                    width = 0.15, position = position_dodge(0.3), size = 0.8) +
+      geom_text(aes(label = grupo, y = media + se + max(media)*0.03),
+                position = position_dodge(0.3), size = 4, fontface = "bold", 
+                show.legend = FALSE) +
+      labs(title = paste(var, "- Interacción", f1, "×", f2),
+           subtitle = "Letras diferentes indican diferencias significativas (Tukey, α=0.15)",
+           x = f1, y = var, color = f2) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = element_text(hjust = 0.5, size = 10),
+            axis.title = element_text(size = 12),
+            axis.text = element_text(size = 10),
+            legend.position = "bottom")
+    
+    print(p_inter)
+    
+    # Gráfico alternativo de interacción - más claro
+    p_inter_alt <- ggplot(resumen_inter, aes(x = interaction(.data[[f1]], .data[[f2]]), y = media)) +
+      geom_point(size = 4, color = "steelblue") +
+      geom_errorbar(aes(ymin = media - se, ymax = media + se), 
+                    width = 0.1, color = "steelblue", size = 0.8) +
+      geom_text(aes(label = grupo, y = media + se + max(media)*0.02),
+                size = 4, fontface = "bold") +
+      labs(title = paste(var, "- Interacción", f1, "×", f2),
+           subtitle = "Letras diferentes indican diferencias significativas (Tukey, α=0.15)",
+           x = paste("Interacción", f1, "×", f2), y = var) +
+      theme_minimal() +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+            plot.subtitle = element_text(hjust = 0.5, size = 10),
+            axis.title = element_text(size = 12),
+            axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+    
+    print(p_inter_alt)
+  }
+  
+  # Limpiar variable temporal
+  datos$interaccion_completa <- NULL
+}
