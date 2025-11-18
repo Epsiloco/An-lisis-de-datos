@@ -32,3 +32,16 @@ print(correlacion)
 
 correlacion2<- cor(CE, `Ca2+`, method = "pearson")
 print(correlacion2)
+
+################################# Matriz de correlación #####################################
+
+
+# Matriz de correlación
+variables_correlacion <- datos %>%
+  select(Altura, Diametro, Tallos_macolla, Poblacion)
+
+matriz_cor <- cor(variables_correlacion, use = "complete.obs", method = "pearson")
+
+cat("MATRIZ DE CORRELACIÓN DE PEARSON\n")
+print(round(matriz_cor, 3))
+
