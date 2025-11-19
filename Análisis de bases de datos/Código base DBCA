@@ -1,0 +1,288 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest", "pwr", "DataExplorer",
+  "rmarkdown", "officer", "flextable", "tinytex")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#################################################################################################
+
+
+excel_sheets("Verapaz 1602 NIR.xlsx")
+datos<- read_excel("Verapaz 1602 NIR.xlsx", sheet = 8)
+attach(datos)
+view(datos)
+
+library(DataExplorer)
+create_report(datos)
+library(esquisse)
+library(dlookr)
+
+diagnose(datos)
+plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
+
+
+# Convertir variables numéricas
+names(datos)
+numericas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")
+datos[numericas] <- lapply(datos[numericas], as.numeric)
+
+# Convertir variables categóricas
+datos$Tratamiento <- as.factor(datos$Tratamiento)
+datos$Replica <- as.factor(datos$Replica)
+
+# Verificación de clases de variables
+sapply(datos, class)
+
+
+# Imputación
+colSums(is.na(datos))
+datos$Brix[is.na(datos$Brix)] <- mean(datos$Brix, na.rm = TRUE)
+datos$POL[is.na(datos$POL)] <- mean(datos$POL, na.rm = TRUE)
+datos$Pureza[is.na(datos$Pureza)] <- mean(datos$Pureza, na.rm = TRUE)
+datos$Jugo[is.na(datos$Jugo)] <- mean(datos$Jugo, na.rm = TRUE)
+datos$Fibra[is.na(datos$Fibra)] <- mean(datos$Fibra, na.rm = TRUE)
+datos$`Rendimiento Kg/Ton`[is.na(datos$`Rendimiento Kg/Ton`)] <- mean(datos$`Rendimiento Kg/Ton`, na.rm = TRUE)
+datos$Humedad[is.na(datos$Humedad)] <- mean(datos$Humedad, na.rm = TRUE)
+
+colSums(is.na(datos[numericas]))
+view(datos)
+# Box-plots
+names(datos)
+boxplot(datos$Brix ~ datos$Tratamiento)
+boxplot(datos$POL ~ datos$Tratamiento)
+boxplot(datos$Pureza ~ datos$Tratamiento)
+boxplot(datos$Jugo ~ datos$Tratamiento)
+boxplot(datos$Fibra ~ datos$Tratamiento)
+boxplot(datos$`Rendimiento Kg/Ton` ~ datos$Tratamiento)
+boxplot(datos$Humedad ~ datos$Tratamiento)
+
+
+tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
+tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
+tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
+tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
+
+# Análisis descriptivo
+names(datos)
+medias<- datos %>%
+  group_by(Tratamiento) %>%
+  summarise(media_Brix = mean(Brix),
+            media_Humedad = mean(Humedad),
+            media_Pol = mean(POL),
+            media_pureza = mean(Pureza),
+            media_Rend = mean(`Rendimiento Kg/Ton`),
+            media_Humedad = mean(Humedad),
+            media_Jugo = mean(Jugo),
+            CV_Brix = (sd(Brix)/sqrt(length(Brix)))*100,
+            CV_Humedad = (sd(Humedad)/sqrt(length(Humedad)))*100,
+            CV_Pol = (sd(POL)/sqrt(length(POL)))*100,
+            CV_Pureza = (sd(Pureza)/sqrt(length(Pureza)))*100,
+            CV_Rend = (sd(`Rendimiento Kg/Ton`)/sqrt(length(`Rendimiento Kg/Ton`)))*100,
+            CV_Humedad = (sd(Humedad)/sqrt(length(Humedad)))*100,
+            CV_Jugo = (sd(Jugo)/sqrt(length(Jugo)))*100)
+
+medias
+
+medias_replica<- datos %>%
+  group_by(Tratamiento, Replica) %>%
+  summarise(media_Brix = mean(Brix),
+            media_Humedad = mean(Humedad),
+            media_Pol = mean(POL),
+            media_pureza = mean(Pureza),
+            media_Rend = mean(`Rendimiento Kg/Ton`),
+            media_Humedad = mean(Humedad),
+            media_Jugo = mean(Jugo))
+medias_replica
+
+# ANOVA
+
+names(datos)
+
+alpha <- 0.15  
+
+tratamiento <- "Tratamiento"
+respuestas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")
+
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  print(anova(modelo))   # uso anova() en lugar de summary() para que coincida con el manual
+}
+
+
+# Verificación de supuestos
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  cat("\n--- Verificación de supuestos ---\n")
+  
+  # 1. QQ-plot
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  
+  # 2. Residuos vs Ajustados
+  plot(modelo$fitted.values, modelo$residuals,
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Shapiro-Wilk
+  if(length(unique(modelo$residuals)) > 1){
+    SW <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(SW)
+  } else {
+    cat("\nShapiro-Wilk no se puede calcular: todos los residuos son idénticos.\n")
+  }
+  
+  # Bartlett y Levene
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    print(bartlett.test(as.formula(paste0("`", var, "` ~ factor(", tratamiento, ")")), data=datos))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    print(leveneTest(as.formula(paste0("`", var, "` ~ factor(", tratamiento, ")")), 
+                     data=datos, center="median"))
+  } else {
+    cat("Bartlett y Levene no se pueden calcular: variable constante.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+# Prueba Múltiple de Medias (PMM):
+
+for (var in respuestas) {
+  
+  # Crear un nombre seguro para la variable
+  nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+  
+  # Ignorar nombres inválidos
+  if(grepl("^var_[_]*$", nombre_var)){
+    cat("\nVariable", var, "omitida: nombre no válido.\n")
+    next
+  }
+  
+  # Crear dataframe temporal y renombrar variable
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  # Asegurar que Tratamiento y Replica sean factores
+  datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+  datos_temp$Replica <- factor(datos_temp$Replica)
+  
+  # Modelo ANDEVA
+  formula <- as.formula(paste0("`", nombre_var, "` ~ Tratamiento + Replica"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Verificar que hay más de un valor y más de un nivel con datos
+  niveles_con_datos <- sum(tapply(datos_temp[[nombre_var]], datos_temp$Tratamiento,
+                                  function(x) length(unique(x)) > 0))
+  
+  if(length(unique(datos_temp[[nombre_var]])) > 1 & niveles_con_datos > 1){
+    
+    # -------------------------
+    # Tukey HSD
+    # -------------------------
+    cat("\n--- Tukey HSD (alpha =", alpha, ") ---\n")
+    print(HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = TRUE))
+    
+    # -------------------------
+    # Scott-Knott
+    # -------------------------
+    cat("\n--- Scott-Knott (alpha =", alpha, ") ---\n")
+    sk <- SK(modelo, which = "Tratamiento", dispersion = "se", sig.level = alpha)
+    print(summary(sk))
+    
+  } else {
+    cat("\nPMM no se puede calcular: variable constante o menos de 2 niveles de tratamiento con datos.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+
+# Barras de error:
+
+for (var in respuestas) {
+  
+  # Crear dataframe temporal y renombrar variable
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- "valor"
+  
+  # Asegurar factores
+  datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+  datos_temp$Replica <- factor(datos_temp$Replica)
+  
+  # Modelo ANDEVA
+  modelo <- aov(valor ~ Tratamiento + Replica, data = datos_temp)
+  
+  # --- Prueba de Tukey ---
+  tukey <- HSD.test(modelo, "Tratamiento", group = TRUE)
+  letras <- tukey$groups %>%
+    mutate(Tratamiento = rownames(tukey$groups)) %>%
+    select(Tratamiento, letra = groups)
+  
+  # --- Resumen de medias e IC95% ---
+  resumen <- datos_temp %>%
+    group_by(Tratamiento) %>%
+    summarise(
+      media = mean(valor, na.rm = TRUE),
+      sd = sd(valor, na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      IC_inf = media - qt(0.975, df = n - 1) * se,
+      IC_sup = media + qt(0.975, df = n - 1) * se,
+      .groups = "drop"
+    ) %>%
+    left_join(letras, by = "Tratamiento") %>%
+    arrange(media) %>%
+    mutate(Trat_ordenado = factor(Tratamiento, levels = Tratamiento))
+  
+  # --- Gráfico de medias ± error + letras ---
+  colores <- "steelblue"
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media)) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.15, color = "black") +
+      geom_text(aes(label = letra, y = IC_sup + 0.05 * max(media)), size = 7, vjust = 0) +
+      labs(title = paste("Medias ± IC95% con letras Tukey -", var),
+           y = var, x = "Tratamiento") +
+      theme_minimal(base_size = 17) +
+      theme(plot.title = element_text(hjust = 0.5))
+  )
+}
+
+library(rmarkdown)
