@@ -24,8 +24,8 @@ lapply(paquetes, library, character.only = TRUE)
 #################################################################################################
 
 
-excel_sheets("Verapaz 1602 NIR.xlsx")
-datos<- read_excel("Verapaz 1602 NIR.xlsx", sheet = 8)
+excel_sheets("Anaite NIR.xlsx")
+datos<- read_excel("Anaite NIR.xlsx", sheet = 5)
 attach(datos)
 view(datos)
 
@@ -40,7 +40,7 @@ plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
 
 # Convertir variables numéricas
 names(datos)
-numericas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")
+numericas <- c("Brix", "POL", "Pureza", "Humedad")
 datos[numericas] <- lapply(datos[numericas], as.numeric)
 
 # Convertir variables categóricas
@@ -51,33 +51,71 @@ datos$Replica <- as.factor(datos$Replica)
 sapply(datos, class)
 
 
+# Identificar y eliminar datos atípicos
+# Box-plots
+names(datos)
+boxplot(datos$Brix ~ datos$Tratamiento)
+a<- boxplot(datos$Brix ~ datos$Tratamiento)
+a
+
+
+boxplot(datos$POL ~ datos$Tratamiento)
+b<- boxplot(datos$POL ~ datos$Tratamiento)
+b
+
+boxplot(datos$Pureza ~ datos$Tratamiento)
+p<- boxplot(datos$Pureza ~ datos$Tratamiento)
+p
+
+boxplot(datos$Humedad ~ datos$Tratamiento)
+d<- boxplot(datos$Humedad ~ datos$Tratamiento)
+d
+
+tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
+tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
+tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
+tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
+
+# Eliminar atípicos
+
+
+datos$Brix[datos$Brix %in% a$out] <- NA
+datos$POL[datos$POL %in% b$out] <- NA
+datos$Pureza[datos$Pureza %in% p$out] <- NA
+datos$Humedad[datos$Humedad %in% d$out] <- NA
+view(datos)
+
+
+# Identificar columnas numéricas
+num_cols <- sapply(datos, is.numeric)
+
+# Reemplazar outliers por NA
+for(col in names(datos)[num_cols]){
+  # calcular cuartiles e IQR
+  Q1 <- quantile(datos[[col]], 0.25, na.rm = TRUE)
+  Q3 <- quantile(datos[[col]], 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  
+  # límites para outliers
+  lower <- Q1 - 1.5 * IQR
+  upper <- Q3 + 1.5 * IQR
+  
+  # reemplazar outliers por NA
+  datos[[col]][datos[[col]] < lower | datos[[col]] > upper] <- NA
+}
+view(datos)
+
+
 # Imputación
 colSums(is.na(datos))
 datos$Brix[is.na(datos$Brix)] <- mean(datos$Brix, na.rm = TRUE)
 datos$POL[is.na(datos$POL)] <- mean(datos$POL, na.rm = TRUE)
 datos$Pureza[is.na(datos$Pureza)] <- mean(datos$Pureza, na.rm = TRUE)
-datos$Jugo[is.na(datos$Jugo)] <- mean(datos$Jugo, na.rm = TRUE)
-datos$Fibra[is.na(datos$Fibra)] <- mean(datos$Fibra, na.rm = TRUE)
-datos$`Rendimiento Kg/Ton`[is.na(datos$`Rendimiento Kg/Ton`)] <- mean(datos$`Rendimiento Kg/Ton`, na.rm = TRUE)
 datos$Humedad[is.na(datos$Humedad)] <- mean(datos$Humedad, na.rm = TRUE)
 
 colSums(is.na(datos[numericas]))
 view(datos)
-# Box-plots
-names(datos)
-boxplot(datos$Brix ~ datos$Tratamiento)
-boxplot(datos$POL ~ datos$Tratamiento)
-boxplot(datos$Pureza ~ datos$Tratamiento)
-boxplot(datos$Jugo ~ datos$Tratamiento)
-boxplot(datos$Fibra ~ datos$Tratamiento)
-boxplot(datos$`Rendimiento Kg/Ton` ~ datos$Tratamiento)
-boxplot(datos$Humedad ~ datos$Tratamiento)
 
-
-tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
-tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
-tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
-tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
 
 # Análisis descriptivo
 names(datos)
@@ -87,17 +125,12 @@ medias<- datos %>%
             media_Humedad = mean(Humedad),
             media_Pol = mean(POL),
             media_pureza = mean(Pureza),
-            media_Rend = mean(`Rendimiento Kg/Ton`),
             media_Humedad = mean(Humedad),
-            media_Jugo = mean(Jugo),
             CV_Brix = (sd(Brix)/sqrt(length(Brix)))*100,
             CV_Humedad = (sd(Humedad)/sqrt(length(Humedad)))*100,
             CV_Pol = (sd(POL)/sqrt(length(POL)))*100,
-            CV_Pureza = (sd(Pureza)/sqrt(length(Pureza)))*100,
-            CV_Rend = (sd(`Rendimiento Kg/Ton`)/sqrt(length(`Rendimiento Kg/Ton`)))*100,
-            CV_Humedad = (sd(Humedad)/sqrt(length(Humedad)))*100,
-            CV_Jugo = (sd(Jugo)/sqrt(length(Jugo)))*100)
-
+            CV_Pureza = (sd(Pureza)/sqrt(length(Pureza)))*100)
+           
 medias
 
 medias_replica<- datos %>%
@@ -105,10 +138,8 @@ medias_replica<- datos %>%
   summarise(media_Brix = mean(Brix),
             media_Humedad = mean(Humedad),
             media_Pol = mean(POL),
-            media_pureza = mean(Pureza),
-            media_Rend = mean(`Rendimiento Kg/Ton`),
-            media_Humedad = mean(Humedad),
-            media_Jugo = mean(Jugo))
+            media_pureza = mean(Pureza))
+
 medias_replica
 
 # ANOVA
@@ -118,7 +149,7 @@ names(datos)
 alpha <- 0.15  
 
 tratamiento <- "Tratamiento"
-respuestas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")
+respuestas <- c("Brix", "POL", "Pureza", "Humedad")
 
 for (var in respuestas) {
   formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
