@@ -6,8 +6,7 @@ paquetes <- c(
   "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
   "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
   "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
-  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "janitor", "missForest", "pwr", "DataExplorer",
-  "rmarkdown", "officer", "flextable", "tinytex")
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "esquisse", "dlookr")
 
 # Verifica cuáles no están instalados
 no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
@@ -21,135 +20,335 @@ if(length(no_instalados)) {
 
 # Carga todos los paquetes (opcional)
 lapply(paquetes, library, character.only = TRUE)
-#################################################################################################
-
-
-excel_sheets("Anaite NIR.xlsx")
-datos<- read_excel("Anaite NIR.xlsx", sheet = 5)
+#######################################--Carga y preparación de datos--#############################################
+excel_sheets("El Para 506 Lectura 1.xlsx")
+datos<- read_excel("El Para 506 Lectura 1.xlsx", sheet = 8)
 attach(datos)
 view(datos)
+head(datos)
+tail(datos)
+names(datos)
 
-library(DataExplorer)
+# Conversión de variables 
+# Variables numéricas
+numericas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")  
+
+# Factores
+categoricas <- c("Tratamiento", "Replica")           
+
+# Conversión a numéricas
+for (col in numericas) {
+  if (col %in% names(datos)) {
+    datos[[col]] <- as.numeric(datos[[col]])
+  } else {
+    warning(paste("La columna", col, "no existe en datos."))
+  }
+}
+
+# Conversión a factores
+for (col in categoricas) {
+  if (col %in% names(datos)) {
+    datos[[col]] <- as.factor(datos[[col]])
+  } else {
+    warning(paste("La columna", col, "no existe en datos."))
+  }
+}
+
+# Verificar
+sapply(datos, class)
+#######################################--Limpieza--#################################################################
+
 create_report(datos)
-library(esquisse)
-library(dlookr)
-
 diagnose(datos)
 plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
 
 
-# Convertir variables numéricas
+#------------------------------------------
+# Análisis de datos atípicos
+#------------------------------------------
+
 names(datos)
-numericas <- c("Brix", "POL", "Pureza", "Humedad")
-datos[numericas] <- lapply(datos[numericas], as.numeric)
+# Errores de digitación
 
-# Convertir variables categóricas
-datos$Tratamiento <- as.factor(datos$Tratamiento)
-datos$Replica <- as.factor(datos$Replica)
-
-# Verificación de clases de variables
-sapply(datos, class)
+  # Variables:
+variables_revisar <- c("Humedad", "POL", "Brix", "Pureza", "Rendimiento Kg/Ton", "Jugo", "Fibra")   
 
 
-# Identificar y eliminar datos atípicos
-# Box-plots
-names(datos)
-boxplot(datos$Brix ~ datos$Tratamiento)
-a<- boxplot(datos$Brix ~ datos$Tratamiento)
-a
-
-
-boxplot(datos$POL ~ datos$Tratamiento)
-b<- boxplot(datos$POL ~ datos$Tratamiento)
-b
-
-boxplot(datos$Pureza ~ datos$Tratamiento)
-p<- boxplot(datos$Pureza ~ datos$Tratamiento)
-p
-
-boxplot(datos$Humedad ~ datos$Tratamiento)
-d<- boxplot(datos$Humedad ~ datos$Tratamiento)
-d
-
-tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
-tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
-tapply(datos$Total_Plantas, datos$Tratamiento, boxplot.stats)
-tapply(datos$Peso_Kg, datos$Tratamiento, boxplot.stats)
-
-# Eliminar atípicos
-
-
-datos$Brix[datos$Brix %in% a$out] <- NA
-datos$POL[datos$POL %in% b$out] <- NA
-datos$Pureza[datos$Pureza %in% p$out] <- NA
-datos$Humedad[datos$Humedad %in% d$out] <- NA
-view(datos)
-
-
-# Identificar columnas numéricas
-num_cols <- sapply(datos, is.numeric)
-
-# Reemplazar outliers por NA
-for(col in names(datos)[num_cols]){
-  # calcular cuartiles e IQR
-  Q1 <- quantile(datos[[col]], 0.25, na.rm = TRUE)
-  Q3 <- quantile(datos[[col]], 0.75, na.rm = TRUE)
-  IQR <- Q3 - Q1
+for (var in variables_revisar) {
   
-  # límites para outliers
-  lower <- Q1 - 1.5 * IQR
-  upper <- Q3 + 1.5 * IQR
-  
-  # reemplazar outliers por NA
-  datos[[col]][datos[[col]] < lower | datos[[col]] > upper] <- NA
+  if (var %in% names(datos)) {
+    
+    cat("\n\n-----------------------------\n")
+    cat("Variable:", var, "\n")
+    cat("-----------------------------\n")
+    
+    print(sort(datos[[var]], na.last = TRUE))
+    
+  } else {
+    warning(paste("La variable", var, "no existe en 'datos'."))
+  }
 }
-view(datos)
 
 
-# Imputación
-colSums(is.na(datos))
-datos$Brix[is.na(datos$Brix)] <- mean(datos$Brix, na.rm = TRUE)
-datos$POL[is.na(datos$POL)] <- mean(datos$POL, na.rm = TRUE)
-datos$Pureza[is.na(datos$Pureza)] <- mean(datos$Pureza, na.rm = TRUE)
-datos$Humedad[is.na(datos$Humedad)] <- mean(datos$Humedad, na.rm = TRUE)
+
+# Identificación con gráficos
+
+vars_num <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad") 
+var_group <- "Tratamiento"                        
+
+# Histogramas
+  # Según frecuencia
+for (v in vars_num) {
+  hist(
+    datos[[v]],
+    main = paste("Distribución de", v),
+    xlab = v,
+    col = "lightblue",
+    breaks = 20
+  )
+}
+
+  # Según densidad
+for (v in vars_num) {
+  
+  dens <- density(datos[[v]], na.rm = TRUE)
+  
+  hist(
+    datos[[v]],
+    main = paste("Distribución de", v),
+    xlab = v,
+    col = "lightblue",
+    breaks = 20,
+    freq = FALSE   
+  )
+  
+  lines(dens, lwd = 2, col = "red")
+  
+  abline(v = mean(datos[[v]], na.rm = TRUE), col = "darkgreen", lwd = 2, lty = 2)
+}
+
+# Boxplots
+for (v in vars_num) {
+  boxplot(
+    datos[[v]] ~ datos[[var_group]],
+    main = paste("Boxplot de", v, "por", var_group),
+    xlab = var_group,
+    ylab = v,
+    col = "lightgreen"
+  )
+}
+
+# Captura de valores de boxplot
+outliers_list <- list()
+
+for (v in vars_num) {
+  bp <- boxplot(
+    datos[[v]] ~ datos[[var_group]],
+    plot = FALSE
+  )
+  outliers_list[[v]] <- bp$stats
+}
+
+outliers_list
+
+# Datos atípicos por tratamiento
+outliers_by_group <- list()
+
+for (v in vars_num) {
+  outliers_by_group[[v]] <- tapply(datos[[v]], datos[[var_group]], boxplot.stats)
+}
+
+outliers_by_group
+
+
+
+# Eliminar datos atípicos
+  # Método 1
+
+numericas <- c("Brix", "POL", "Pureza", "Humedad")
+grupo <- "Tratamiento"   
+
+
+for (v in numericas) {
+  
+  out <- boxplot(datos[[v]] ~ datos[[grupo]], plot = FALSE)$out
+  
+  datos[[v]][datos[[v]] %in% out] <- NA
+}
 
 colSums(is.na(datos[numericas]))
+
+plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
+
+
+
+# Método 2: con el IQR
+
+numericas <- c("Brix", "POL", "Pureza", "Humedad")  
+grupo <- "Tratamiento"                               
+
+
+for (v in numericas) {
+  
+  if (v %in% names(datos)) {
+    
+    Q1 <- quantile(datos[[v]], 0.25, na.rm = TRUE)
+    Q3 <- quantile(datos[[v]], 0.75, na.rm = TRUE)
+    IQR_val <- Q3 - Q1
+    
+    lower <- Q1 - 1.5 * IQR_val
+    upper <- Q3 + 1.5 * IQR_val
+    
+    outliers <- datos[[v]] < lower | datos[[v]] > upper
+    
+    datos[[v]][outliers] <- NA # Reemplazar
+    
+    # Resumen
+    cat("Variable:", v, "- Outliers reemplazados por NA:", sum(outliers), "\n")
+  } else {
+    warning(paste("La variable", v, "no existe en el dataset."))
+  }
+}
+
+cat("\nResumen de NA por variable numérica:\n")
+print(colSums(is.na(datos[numericas])))
+
+
+#------------------------------------------
+# Datos faltantes
+#------------------------------------------
+
+# Imputación con media
+
+numericas <- c("Humedad", "POL", "Brix", "Pureza", "Rendimiento Kg/Ton", "Jugo", "Fibra")
+colSums(is.na(datos[numericas]))
+
+for (v in numericas) {
+  datos[[v]][is.na(datos[[v]])] <- mean(datos[[v]], na.rm = TRUE)
+}
+
+colSums(is.na(datos[numericas]))
+attach(datos)
 view(datos)
+###############################################--Análisis descriptivo--#######################################################
+
+# Medidas de resumen
+
+numericas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")   
+factores  <- c("Tratamiento")            
+estadisticas <- c("media")
+
+calc_stat <- function(x, stat) {
+  n <- sum(!is.na(x))
+  m <- mean(x, na.rm = TRUE)
+  s <- sd(x, na.rm = TRUE)
+  
+  if(stat == "media")      return(m)
+  if(stat == "sd")         return(s)
+  if(stat == "var")        return(var(x, na.rm = TRUE))
+  if(stat == "CV")         return((s/m)*100)
+  if(stat == "min")        return(min(x, na.rm = TRUE))
+  if(stat == "max")        return(max(x, na.rm = TRUE))
+  if(stat == "mediana")    return(median(x, na.rm = TRUE))
+  if(stat == "SE")         return(s / sqrt(n))
+  if(stat == "LS")         return(m + (s / sqrt(n)))   
+  if(stat == "LI")         return(m - (s / sqrt(n)))   
+  stop("Estadística no reconocida")
+}
+
+resumen <- datos %>%
+  group_by(across(all_of(factores))) %>%
+  summarise(
+    across(
+      all_of(numericas),
+      .fns = setNames(
+        lapply(estadisticas, function(stat) function(x) calc_stat(x, stat)), 
+        estadisticas
+      ),
+      .names = "{.col}_{.fn}"
+    ),
+    .groups = "drop"
+  )
+
+resumen
+
+# Gráficos
+
+# Gráfico de barras
+
+numericas <- c("Humedad", "POL", "Brix", "Pureza", "Rendimiento Kg/Ton", "Jugo", "Fibra")
+factor_group <- "Tratamiento"
+
+resumen <- datos %>%
+  group_by(across(all_of(factor_group))) %>%
+  summarise(across(all_of(numericas), mean, na.rm = TRUE), .groups = "drop")
+
+for (v in numericas) {
+  resumen[[paste0(v, "_label")]] <- sprintf("%.2f", resumen[[v]])
+}
+
+for (v in numericas) {
+  label_col <- paste0(v, "_label")
+  
+  p <- ggplot(resumen, aes_string(x = factor_group, y = v)) +
+    geom_bar(stat = "identity", fill = NA, color = "black", width = 0.6) +  # solo delineado
+    geom_text(aes_string(label = label_col), vjust = -0.5, color = "black") +
+    labs(title = paste("Gráfico de barras - medias de", v),
+         x = factor_group,
+         y = v) +
+    theme_minimal(base_size = 14)
+  
+  print(p)
+}
 
 
-# Análisis descriptivo
-names(datos)
-medias<- datos %>%
-  group_by(Tratamiento) %>%
-  summarise(media_Brix = mean(Brix),
-            media_Humedad = mean(Humedad),
-            media_Pol = mean(POL),
-            media_pureza = mean(Pureza),
-            media_Humedad = mean(Humedad),
-            CV_Brix = (sd(Brix)/sqrt(length(Brix)))*100,
-            CV_Humedad = (sd(Humedad)/sqrt(length(Humedad)))*100,
-            CV_Pol = (sd(POL)/sqrt(length(POL)))*100,
-            CV_Pureza = (sd(Pureza)/sqrt(length(Pureza)))*100)
-           
-medias
+# Gráfico de líneas y puntos
 
-medias_replica<- datos %>%
-  group_by(Tratamiento, Replica) %>%
-  summarise(media_Brix = mean(Brix),
-            media_Humedad = mean(Humedad),
-            media_Pol = mean(POL),
-            media_pureza = mean(Pureza))
+numericas <- c("Humedad", "POL", "Brix", "Pureza", "Rendimiento Kg/Ton", "Jugo", "Fibra")  
+factor_group <- "Tratamiento"                     
 
-medias_replica
+resumen <- datos %>%
+  group_by(across(all_of(factor_group))) %>%
+  summarise(across(all_of(numericas), mean, na.rm = TRUE), .groups = "drop")
 
-# ANOVA
+for (v in numericas) {
+  resumen[[paste0(v, "_label")]] <- sprintf("%.2f", resumen[[v]])
+}
+
+for (v in numericas) {
+  
+  label_col <- paste0(v, "_label")
+  
+  p <- ggplot(resumen, aes_string(x = factor_group, y = v, group = 1)) +
+    
+    geom_line(color = "#2C3E50", size = 1.2) +
+    
+    geom_point(color = "#E74C3C", size = 3) +
+    
+    geom_text(aes_string(label = label_col), vjust = -1, color = "#34495E", size = 4) +
+    
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+      axis.title = element_text(face = "bold"),
+      panel.grid.major = element_line(color = "grey80"),
+      panel.grid.minor = element_blank()
+    ) +
+    labs(title = paste("Promedio de", v, "por", factor_group),
+         x = factor_group,
+         y = v)
+  
+  print(p)
+}
+###############################################--ANDEVA--#########################################################
+# Pegar el bucle según corresponda el diseño experimental y arreglo factorial 
 
 names(datos)
 
 alpha <- 0.15  
 
 tratamiento <- "Tratamiento"
-respuestas <- c("Brix", "POL", "Pureza", "Humedad")
+respuestas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")
 
 for (var in respuestas) {
   formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
@@ -264,29 +463,29 @@ for (var in respuestas) {
 }
 
 
-
 # Barras de error:
+
+alpha <- 0.15   
+
 
 for (var in respuestas) {
   
-  # Crear dataframe temporal y renombrar variable
   datos_temp <- datos
   names(datos_temp)[names(datos_temp) == var] <- "valor"
   
-  # Asegurar factores
   datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
   datos_temp$Replica <- factor(datos_temp$Replica)
   
-  # Modelo ANDEVA
   modelo <- aov(valor ~ Tratamiento + Replica, data = datos_temp)
   
-  # --- Prueba de Tukey ---
-  tukey <- HSD.test(modelo, "Tratamiento", group = TRUE)
+
+  tukey <- HSD.test(modelo, "Tratamiento", group = TRUE, alpha = alpha)
+  
   letras <- tukey$groups %>%
     mutate(Tratamiento = rownames(tukey$groups)) %>%
     select(Tratamiento, letra = groups)
   
-  # --- Resumen de medias e IC95% ---
+
   resumen <- datos_temp %>%
     group_by(Tratamiento) %>%
     summarise(
@@ -294,26 +493,30 @@ for (var in respuestas) {
       sd = sd(valor, na.rm = TRUE),
       n = n(),
       se = sd / sqrt(n),
-      IC_inf = media - qt(0.975, df = n - 1) * se,
-      IC_sup = media + qt(0.975, df = n - 1) * se,
+      
+      t_value = qt(1 - alpha/2, df = n - 1),
+      
+      IC_inf = media - t_value * se,
+      IC_sup = media + t_value * se,
       .groups = "drop"
     ) %>%
     left_join(letras, by = "Tratamiento") %>%
     arrange(media) %>%
     mutate(Trat_ordenado = factor(Tratamiento, levels = Tratamiento))
   
-  # --- Gráfico de medias ± error + letras ---
   colores <- "steelblue"
+  
   print(
     ggplot(resumen, aes(x = Trat_ordenado, y = media)) +
       geom_point(size = 3, color = colores) +
-      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.15, color = "black") +
-      geom_text(aes(label = letra, y = IC_sup + 0.05 * max(media)), size = 7, vjust = 0) +
-      labs(title = paste("Medias ± IC95% con letras Tukey -", var),
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.15) +
+      geom_text(aes(label = letra, y = IC_sup + 0.05 * max(media)),
+                size = 7, vjust = 0) +
+      labs(title = paste("Medias ± IC (1 - α) con letras Tukey -", var),
+           subtitle = paste("α =", alpha),
            y = var, x = "Tratamiento") +
       theme_minimal(base_size = 17) +
       theme(plot.title = element_text(hjust = 0.5))
   )
 }
 
-library(rmarkdown)
