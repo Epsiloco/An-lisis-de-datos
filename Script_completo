@@ -1,0 +1,2365 @@
+paquetes <- c(
+  "openxlsx", "fBasics", "psych", "modeest", "ggrepel", "GGally", 
+  "mice", "corrplot", "readxl", "doebioresearch", "performance", "dplyr", 
+  "ScottKnott", "agricolae", "car", "broom", "data.table", "emmeans", 
+  "ggplot2", "tidyverse", "lattice", "nlme", "lme4", "lmerTest", "multcomp", 
+  "rstatix", "ggpubr", "see", "MASS", "lsmeans", "scales", "lmtest", "multcompView", 
+  "googlesheets4", "googledrive", "clipr", "FactoMineR", "factoextra", 
+  "glmmTMB", "DHARMa", "MuMIn", "hnp", "effects", "sjstats", "ExpDes", "sf", "tmap", "terra",
+  "RVAideMemoire", "RColorBrewer", "DiagrammeR", "esquisse", "dlookr")
+
+# Verifica cuáles no están instalados
+no_instalados <- paquetes[!(paquetes %in% installed.packages()[,"Package"])];no_instalados
+
+# Instala los que faltan
+if(length(no_instalados)) {
+  install.packages(no_instalados)
+} else {
+  message("Todos los paquetes ya están instalados.")
+}
+
+# Carga todos los paquetes (opcional)
+lapply(paquetes, library, character.only = TRUE)
+#######################################--Carga y preparación de datos--#############################################
+excel_sheets("PLAGAS ROEDORES.xlsx")
+datos<- read_excel("PLAGAS ROEDORES.xlsx", sheet = 3)
+attach(datos)
+view(datos)
+head(datos)
+tail(datos)
+names(datos)
+
+# Conversión de variables 
+# Variables numéricas
+numericas <- c("Total_roedores", "Porc_captura", "Sigmodon", "Oryzomis", 
+               "Adultos", "Juveniles", "Hembras", "Machos")  
+
+# Factores
+categoricas <- c("Tratamiento", "Replica", "Tiempo")           
+
+# Conversión a numéricas
+for (col in numericas) {
+  if (col %in% names(datos)) {
+    datos[[col]] <- as.numeric(datos[[col]])
+  } else {
+    warning(paste("La columna", col, "no existe en datos."))
+  }
+}
+
+# Conversión a factores
+for (col in categoricas) {
+  if (col %in% names(datos)) {
+    datos[[col]] <- as.factor(datos[[col]])
+  } else {
+    warning(paste("La columna", col, "no existe en datos."))
+  }
+}
+
+# Verificar
+sapply(datos, class)
+#######################################--Limpieza--#################################################################
+
+create_report(datos)
+diagnose(datos)
+plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
+
+
+#------------------------------------------
+# Análisis de datos atípicos
+#------------------------------------------
+
+names(datos)
+# Errores de digitación
+
+  # Variables:
+variables_revisar <- c("Total_roedores", "Porc_captura", "Sigmodon", "Oryzomis", "Adultos", 
+                       "Juveniles", "Hembras", "Machos")   
+
+
+for (var in variables_revisar) {
+  
+  if (var %in% names(datos)) {
+    
+    cat("\n\n-----------------------------\n")
+    cat("Variable:", var, "\n")
+    cat("-----------------------------\n")
+    
+    print(sort(datos[[var]], na.last = TRUE))
+    
+  } else {
+    warning(paste("La variable", var, "no existe en 'datos'."))
+  }
+}
+
+
+
+# Identificación con gráficos
+
+vars_num <- c("Total_roedores", "Porc_captura", "Sigmodon", "Oryzomis", "Adultos", "Juveniles", "Hembras", "Machos") 
+var_group <- "Tratamiento"                        
+
+# Histogramas
+  # Según frecuencia
+for (v in vars_num) {
+  hist(
+    datos[[v]],
+    main = paste("Distribución de", v),
+    xlab = v,
+    col = "lightblue",
+    breaks = 20
+  )
+}
+
+  # Según densidad
+for (v in vars_num) {
+  
+  dens <- density(datos[[v]], na.rm = TRUE)
+  
+  hist(
+    datos[[v]],
+    main = paste("Distribución de", v),
+    xlab = v,
+    col = "lightblue",
+    breaks = 20,
+    freq = FALSE   
+  )
+  
+  lines(dens, lwd = 2, col = "red")
+  
+  abline(v = mean(datos[[v]], na.rm = TRUE), col = "darkgreen", lwd = 2, lty = 2)
+}
+
+# Boxplots
+for (v in vars_num) {
+  boxplot(
+    datos[[v]] ~ datos[[var_group]],
+    main = paste("Boxplot de", v, "por", var_group),
+    xlab = var_group,
+    ylab = v,
+    col = "lightgreen"
+  )
+}
+
+# Captura de valores de boxplot
+outliers_list <- list()
+
+for (v in vars_num) {
+  bp <- boxplot(
+    datos[[v]] ~ datos[[var_group]],
+    plot = FALSE
+  )
+  outliers_list[[v]] <- bp$stats
+}
+
+outliers_list
+
+# Datos atípicos por tratamiento
+outliers_by_group <- list()
+
+for (v in vars_num) {
+  outliers_by_group[[v]] <- tapply(datos[[v]], datos[[var_group]], boxplot.stats)
+}
+
+outliers_by_group
+
+
+
+# Eliminar datos atípicos
+  # Método 1
+
+numericas <- c("Brix", "POL", "Pureza", "Humedad")
+grupo <- "Tratamiento"   
+
+
+for (v in numericas) {
+  
+  out <- boxplot(datos[[v]] ~ datos[[grupo]], plot = FALSE)$out
+  
+  datos[[v]][datos[[v]] %in% out] <- NA
+}
+
+colSums(is.na(datos[numericas]))
+
+plot_na_pareto(datos) #grafica de datos faltantes: si no los hay, tira error
+
+
+
+# Método 2: con el IQR
+
+numericas <- c("Brix", "POL", "Pureza", "Humedad")  
+grupo <- "Tratamiento"                               
+
+
+for (v in numericas) {
+  
+  if (v %in% names(datos)) {
+    
+    Q1 <- quantile(datos[[v]], 0.25, na.rm = TRUE)
+    Q3 <- quantile(datos[[v]], 0.75, na.rm = TRUE)
+    IQR_val <- Q3 - Q1
+    
+    lower <- Q1 - 1.5 * IQR_val
+    upper <- Q3 + 1.5 * IQR_val
+    
+    outliers <- datos[[v]] < lower | datos[[v]] > upper
+    
+    datos[[v]][outliers] <- NA # Reemplazar
+    
+    # Resumen
+    cat("Variable:", v, "- Outliers reemplazados por NA:", sum(outliers), "\n")
+  } else {
+    warning(paste("La variable", v, "no existe en el dataset."))
+  }
+}
+
+cat("\nResumen de NA por variable numérica:\n")
+print(colSums(is.na(datos[numericas])))
+
+
+#------------------------------------------
+# Datos faltantes
+#------------------------------------------
+
+# Imputación con media
+
+numericas <- c("Humedad", "POL", "Brix", "Pureza", "Rendimiento Kg/Ton", "Jugo", "Fibra")
+colSums(is.na(datos[numericas]))
+
+for (v in numericas) {
+  datos[[v]][is.na(datos[[v]])] <- mean(datos[[v]], na.rm = TRUE)
+}
+
+colSums(is.na(datos[numericas]))
+attach(datos)
+view(datos)
+
+
+
+
+###############################################--Análisis descriptivo--#######################################################
+# Filtrar 
+
+names(datos)
+filtrar_por_tratamiento <- function(factor = "Tiempo",
+                                    incluir = NULL,
+                                    excluir = "Fuera_Rango") {
+  
+  if (!factor %in% names(datos)) {
+    stop(paste("La columna", factor, "no existe en el objeto 'datos'."))
+  }
+  
+  df <- datos
+  
+  if (!is.null(incluir)) {
+    df <- df %>% dplyr::filter(.data[[factor]] %in% incluir)
+  }
+  
+  if (!is.null(excluir)) {
+    df <- df %>% dplyr::filter(!(.data[[factor]] %in% excluir))
+  }
+  
+  assign("datos", df, envir = .GlobalEnv)
+}
+
+filtrar_por_tratamiento() # Llamada a función
+view(datos)
+
+##############################################################################
+
+# Medidas de resumen
+names(datos)
+
+factores <- c("Tratamiento")
+
+estadisticas_por_variable <- list(
+  Total_roedores = "total",                           # Variable de respuesta
+  Porc_captura = "media"
+)
+
+calc_stat <- function(x, stat) {
+  if(length(x) == 0 || all(is.na(x))) return(NA)
+  
+  n <- sum(!is.na(x))
+  m <- mean(x, na.rm = TRUE)
+  s <- sd(x, na.rm = TRUE)
+  
+  switch(stat,
+         "media"   = m,
+         "total"   = sum(x, na.rm = TRUE),
+         "sd"      = s,
+         "var"     = var(x, na.rm = TRUE),
+         "CV"      = if(m != 0) (s/m)*100 else NA,
+         "min"     = min(x, na.rm = TRUE),
+         "max"     = max(x, na.rm = TRUE),
+         "mediana" = median(x, na.rm = TRUE),
+         "SE"      = s / sqrt(n),
+         "LS"      = m + (s / sqrt(n)),
+         "LI"      = m - (s / sqrt(n)),
+         stop("Estadística no reconocida: ", stat)
+  )
+}
+
+variables_existentes <- names(estadisticas_por_variable)[names(estadisticas_por_variable) %in% names(datos)]
+
+if(length(variables_existentes) == 0) {
+  stop("Error: Ninguna de las variables especificadas existe en los datos. ",
+       "Variables especificadas: ", paste(names(estadisticas_por_variable), collapse = ", "),
+       "\nVariables disponibles: ", paste(names(datos), collapse = ", "))
+}
+
+
+nombres_columnas <- character(length(variables_existentes))
+for(i in seq_along(variables_existentes)) {
+  var <- variables_existentes[i]
+  stat <- estadisticas_por_variable[[var]]
+  nombres_columnas[i] <- paste0(var, "_", stat)
+}
+
+resumen <- datos %>%
+  group_by(across(all_of(factores))) %>%
+  summarise(
+    across(
+      all_of(variables_existentes),
+      ~ {
+        var_name <- cur_column()
+        calc_stat(.x, estadisticas_por_variable[[var_name]])
+      }
+    ),
+    .groups = "drop"
+  )
+
+
+names(resumen)[(length(factores) + 1):ncol(resumen)] <- nombres_columnas
+
+
+print("Resumen estadístico:")
+print(resumen)                      # Mostrar resultados
+
+
+cat("\nVariables procesadas:", paste(variables_existentes, collapse = ", "), "\n")
+cat("Factores de agrupación:", paste(factores, collapse = ", "), "\n")
+
+
+
+# Tablas de doble entrada (contingencia)
+names(datos)
+
+fila <- "Tratamiento"
+columna <- "Replica" 
+variable <- "Total_roedores"
+estadistica <- "suma"  # Opciones: "media", "mediana", "suma", "min", "max", 
+# "sd", "cv", "ee", "ls", "li"
+
+
+tabla <- datos %>%
+  group_by(across(all_of(c(fila, columna)))) %>%
+  summarise(Valor = case_when(
+    estadistica == "media" ~ mean(.data[[variable]], na.rm = TRUE),
+    estadistica == "mediana" ~ median(.data[[variable]], na.rm = TRUE),
+    estadistica == "suma" ~ sum(.data[[variable]], na.rm = TRUE),
+    estadistica == "min" ~ min(.data[[variable]], na.rm = TRUE),
+    estadistica == "max" ~ max(.data[[variable]], na.rm = TRUE),
+    estadistica == "sd" ~ sd(.data[[variable]], na.rm = TRUE),
+    estadistica == "cv" ~ (sd(.data[[variable]], na.rm = TRUE) / mean(.data[[variable]], na.rm = TRUE)) * 100,
+    estadistica == "ee" ~ sd(.data[[variable]], na.rm = TRUE) / sqrt(length(na.omit(.data[[variable]]))),
+    estadistica == "ls" ~ mean(.data[[variable]], na.rm = TRUE) + (sd(.data[[variable]], na.rm = TRUE) / sqrt(length(na.omit(.data[[variable]])))),
+    estadistica == "li" ~ mean(.data[[variable]], na.rm = TRUE) - (sd(.data[[variable]], na.rm = TRUE) / sqrt(length(na.omit(.data[[variable]]))))
+  ), .groups = 'drop') %>%
+  pivot_wider(
+    names_from = all_of(columna), 
+    values_from = Valor
+  )
+
+print(tabla)
+
+
+
+######################################################
+# Gráficos
+
+# Gráfico de barras
+
+numericas <- c("Total_roedores", "Porc_captura", "Sigmodon", "Oryzomis", "Adultos", 
+               "Juveniles", "Hembras", "Machos")
+factor_group <- "Tratamiento"
+
+resumen <- datos %>%
+  group_by(across(all_of(factor_group))) %>%
+  summarise(across(all_of(numericas), mean, na.rm = TRUE), .groups = "drop")
+
+for (v in numericas) {
+  resumen[[paste0(v, "_label")]] <- sprintf("%.2f", resumen[[v]])
+}
+
+for (v in numericas) {
+  label_col <- paste0(v, "_label")
+  
+  p <- ggplot(resumen, aes_string(x = factor_group, y = v)) +
+    geom_bar(stat = "identity", fill = NA, color = "black", width = 0.6) +  # solo delineado
+    geom_text(aes_string(label = label_col), vjust = -0.5, color = "black") +
+    labs(title = paste("Gráfico de barras - medias de", v),
+         x = factor_group,
+         y = v) +
+    theme_minimal(base_size = 14)
+  
+  print(p)
+}
+
+
+# Gráfico de líneas y puntos
+
+numericas <- c("Total_roedores", "Porc_captura", "Sigmodon", "Oryzomis", "Adultos", 
+               "Juveniles", "Hembras", "Machos")  
+factor_group <- "Tratamiento"                     
+
+resumen <- datos %>%
+  group_by(across(all_of(factor_group))) %>%
+  summarise(across(all_of(numericas), mean, na.rm = TRUE), .groups = "drop")
+
+for (v in numericas) {
+  resumen[[paste0(v, "_label")]] <- sprintf("%.2f", resumen[[v]])
+}
+
+for (v in numericas) {
+  
+  label_col <- paste0(v, "_label")
+  
+  p <- ggplot(resumen, aes_string(x = factor_group, y = v, group = 1)) +
+    
+    geom_line(color = "#2C3E50", size = 1.2) +
+    
+    geom_point(color = "#E74C3C", size = 3) +
+    
+    geom_text(aes_string(label = label_col), vjust = -1, color = "#34495E", size = 4) +
+    
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+      axis.title = element_text(face = "bold"),
+      panel.grid.major = element_line(color = "grey80"),
+      panel.grid.minor = element_blank()
+    ) +
+    labs(title = paste("Promedio de", v, "por", factor_group),
+         x = factor_group,
+         y = v)
+  
+  print(p)
+}
+###############################################--ANDEVA--#########################################################
+# Pegar el bucle según corresponda el diseño experimental y arreglo factorial 
+
+names(datos)
+
+alpha <- 0.15  
+
+tratamiento <- "Tratamiento"
+respuestas <- c("Brix", "POL", "Pureza", "Jugo", "Fibra", "Rendimiento Kg/Ton", "Humedad")
+
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  print(anova(modelo))   # uso anova() en lugar de summary() para que coincida con el manual
+}
+
+
+# Verificación de supuestos
+for (var in respuestas) {
+  formula <- as.formula(paste0("`", var, "` ~ factor(", tratamiento, ") + factor(Replica)"))
+  modelo <- aov(formula, data = datos)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  cat("\n--- Verificación de supuestos ---\n")
+  
+  # 1. QQ-plot
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  
+  # 2. Residuos vs Ajustados
+  plot(modelo$fitted.values, modelo$residuals,
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Shapiro-Wilk
+  if(length(unique(modelo$residuals)) > 1){
+    SW <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(SW)
+  } else {
+    cat("\nShapiro-Wilk no se puede calcular: todos los residuos son idénticos.\n")
+  }
+  
+  # Bartlett y Levene
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    print(bartlett.test(as.formula(paste0("`", var, "` ~ factor(", tratamiento, ")")), data=datos))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    print(leveneTest(as.formula(paste0("`", var, "` ~ factor(", tratamiento, ")")), 
+                     data=datos, center="median"))
+  } else {
+    cat("Bartlett y Levene no se pueden calcular: variable constante.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+# Prueba Múltiple de Medias (PMM):
+
+for (var in respuestas) {
+  
+  # Crear un nombre seguro para la variable
+  nombre_var <- paste0("var_", gsub("[^[:alnum:]_]", "_", var))
+  
+  # Ignorar nombres inválidos
+  if(grepl("^var_[_]*$", nombre_var)){
+    cat("\nVariable", var, "omitida: nombre no válido.\n")
+    next
+  }
+  
+  # Crear dataframe temporal y renombrar variable
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- nombre_var
+  
+  # Asegurar que Tratamiento y Replica sean factores
+  datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+  datos_temp$Replica <- factor(datos_temp$Replica)
+  
+  # Modelo ANDEVA
+  formula <- as.formula(paste0("`", nombre_var, "` ~ Tratamiento + Replica"))
+  modelo <- aov(formula, data = datos_temp)
+  
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Verificar que hay más de un valor y más de un nivel con datos
+  niveles_con_datos <- sum(tapply(datos_temp[[nombre_var]], datos_temp$Tratamiento,
+                                  function(x) length(unique(x)) > 0))
+  
+  if(length(unique(datos_temp[[nombre_var]])) > 1 & niveles_con_datos > 1){
+    
+    # -------------------------
+    # Tukey HSD
+    # -------------------------
+    cat("\n--- Tukey HSD (alpha =", alpha, ") ---\n")
+    print(HSD.test(modelo, trt = "Tratamiento", alpha = alpha, console = TRUE))
+    
+    # -------------------------
+    # Scott-Knott
+    # -------------------------
+    cat("\n--- Scott-Knott (alpha =", alpha, ") ---\n")
+    sk <- SK(modelo, which = "Tratamiento", dispersion = "se", sig.level = alpha)
+    print(summary(sk))
+    
+  } else {
+    cat("\nPMM no se puede calcular: variable constante o menos de 2 niveles de tratamiento con datos.\n")
+  }
+  
+  cat("\n------------------------------------\n")
+}
+
+
+# Barras de error:
+
+alpha <- 0.15   
+
+
+for (var in respuestas) {
+  
+  datos_temp <- datos
+  names(datos_temp)[names(datos_temp) == var] <- "valor"
+  
+  datos_temp$Tratamiento <- factor(datos_temp$Tratamiento)
+  datos_temp$Replica <- factor(datos_temp$Replica)
+  
+  modelo <- aov(valor ~ Tratamiento + Replica, data = datos_temp)
+  
+
+  tukey <- HSD.test(modelo, "Tratamiento", group = TRUE, alpha = alpha)
+  
+  letras <- tukey$groups %>%
+    mutate(Tratamiento = rownames(tukey$groups)) %>%
+    select(Tratamiento, letra = groups)
+  
+
+  resumen <- datos_temp %>%
+    group_by(Tratamiento) %>%
+    summarise(
+      media = mean(valor, na.rm = TRUE),
+      sd = sd(valor, na.rm = TRUE),
+      n = n(),
+      se = sd / sqrt(n),
+      
+      t_value = qt(1 - alpha/2, df = n - 1),
+      
+      IC_inf = media - t_value * se,
+      IC_sup = media + t_value * se,
+      .groups = "drop"
+    ) %>%
+    left_join(letras, by = "Tratamiento") %>%
+    arrange(media) %>%
+    mutate(Trat_ordenado = factor(Tratamiento, levels = Tratamiento))
+  
+  colores <- "steelblue"
+  
+  print(
+    ggplot(resumen, aes(x = Trat_ordenado, y = media)) +
+      geom_point(size = 3, color = colores) +
+      geom_errorbar(aes(ymin = IC_inf, ymax = IC_sup), width = 0.15) +
+      geom_text(aes(label = letra, y = IC_sup + 0.05 * max(media)),
+                size = 7, vjust = 0) +
+      labs(title = paste("Medias ± IC (1 - α) con letras Tukey -", var),
+           subtitle = paste("α =", alpha),
+           y = var, x = "Tratamiento") +
+      theme_minimal(base_size = 17) +
+      theme(plot.title = element_text(hjust = 0.5))
+  )
+}
+
+#########################-Experimentos factoriales-######################################################################
+# Arreglo factorial combinatorio
+
+factores <- c("Distanciamiento", "Dosis")
+bloque <- "Replica"
+
+# Variables de respuesta
+respuestas <- c("Altura", "Diametro", "Tallos_macolla", "Poblacion", "TML")
+
+# Convertir factores y respuestas
+for(f in factores) datos[[f]] <- as.factor(datos[[f]])
+datos[[bloque]] <- as.factor(datos[[bloque]])
+
+for(v in respuestas) datos[[v]] <- as.numeric(datos[[v]])
+
+# -----------------------------
+#  ANDEVA trifactorial con bloque
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("📊 ANDEVA trifactorial para:", var, "\n")
+  cat("============================================\n")
+  
+  formula_anidada <- paste(factores, collapse="*")
+  formula <- as.formula(paste0("`", var, "` ~ ", bloque, " + ", formula_anidada))
+  modelo <- aov(formula, data=datos)
+  
+  # Mostrar ANDEVA
+  print(summary(modelo))
+  
+  # Coeficiente de variación
+  cv <- (sqrt(mean(modelo$residuals^2)) / mean(datos[[var]], na.rm=TRUE))*100
+  cat("Coeficiente de variación (CV%) =", round(cv,2), "\n")
+  
+  # -----------------------------
+  #  Supuestos
+  # -----------------------------
+  
+  # Normalidad de residuos
+  qqPlot(modelo$residuals, main=paste("QQ-plot:", var), col="red", lwd=2, pch=16)
+  if(length(unique(modelo$residuals)) > 1){
+    sw <- shapiro.test(modelo$residuals)
+    cat("\nShapiro-Wilk para", var, ":\n")
+    print(sw)
+  }
+  
+  # Residuos vs valores ajustados
+  plot(modelo$fitted.values, modelo$residuals,
+       main=paste("Residuos vs Ajustados:", var),
+       xlab="Valores Ajustados", ylab="Residuos", pch=16, col="blue")
+  abline(h=0, col="red", lwd=2)
+  
+  # Homogeneidad de varianzas (Levene y Bartlett)
+  formula_interaccion <- as.formula(paste0("`", var, "` ~ interaction(", paste(factores, collapse=":"), ")"))
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nPrueba de Bartlett para", var, ":\n")
+    tryCatch(print(bartlett.test(formula_interaccion, data=datos)),
+             error=function(e) cat("Error Bartlett:", e$message, "\n"))
+    
+    cat("\nPrueba de Levene para", var, ":\n")
+    tryCatch(print(leveneTest(formula_interaccion, data=datos, center="median")),
+             error=function(e) cat("Error Levene:", e$message, "\n"))
+  }
+  
+  # Diagnóstico gráfico completo
+  par(mfrow=c(2,2))
+  plot(modelo)
+  par(mfrow=c(1,1))
+  
+  # Verificación con performance
+  performance::check_normality(modelo)
+  performance::check_model(modelo)
+}
+
+# -----------------------------
+#  Pruebas de medias múltiples
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("Pruebas de medias para:", var, "\n")
+  cat("============================================\n")
+  
+  # Interacción completa
+  datos$interaccion_completa <- interaction(datos[,factores], sep="_")
+  modelo_interaccion <- aov(as.formula(paste0("`", var, "` ~ interaccion_completa")), data=datos)
+  
+  if(length(unique(datos[[var]])) > 1){
+    cat("\nTukey HSD - Interacción completa:\n")
+    HSD.test(modelo_interaccion, "interaccion_completa", console=TRUE)
+    
+    cat("\nScott-Knott - Interacción completa:\n")
+    try({
+      sk <- SK(modelo_interaccion, which="interaccion_completa", dispersion="se", sig.level=0.15)
+      print(summary(sk))
+    })
+  }
+  
+  # Factores individuales
+  for(f in factores){
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    
+    cat("\nTukey HSD - Factor", f, ":\n")
+    HSD.test(modelo_factor, f, console=TRUE)
+    
+    cat("\nScott-Knott - Factor", f, ":\n")
+    try({
+      sk_f <- SK(modelo_factor, which=f, dispersion="se", sig.level=0.15)
+      print(summary(sk_f))
+    })
+  }
+  
+  datos$interaccion_completa <- NULL
+}
+
+# -----------------------------
+#  Gráficos por variable y factor
+# -----------------------------
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat("Gráficos para:", var, "\n")
+  cat("============================================\n")
+  
+  # Gráficos por factor individual
+  for(f in factores){
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop")
+    
+    # Barras con SE
+    p_bar <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
+      geom_bar(stat="identity", fill="gray70", color="black") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      labs(title=paste("Barras con SE -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_bar)
+    
+    # Puntos con SE
+    p_point <- ggplot(resumen, aes(x=.data[[f]], y=media)) +
+      geom_point(size=3, color="steelblue") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      labs(title=paste("Puntos con SE -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_point)
+    
+    # Boxplot
+    p_box <- ggplot(datos, aes(x=.data[[f]], y=.data[[var]])) +
+      geom_boxplot(fill="lightblue") +
+      labs(title=paste("Boxplot -", f, "-", var), x=f, y=var) +
+      theme_minimal()
+    print(p_box)
+  }
+  
+  # Gráficos de interacción (primeros dos factores)
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
+    
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(media = mean(.data[[var]], na.rm=TRUE),
+                se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+                .groups="drop") %>%
+      ungroup() %>%
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]]))
+    
+    # Línea de interacción
+    p_line <- ggplot(resumen_inter, aes(x=.data[[f1]], y=media, group=.data[[f2]], color=.data[[f2]])) +
+      geom_line(size=1.2) + geom_point(size=3) +
+      labs(title=paste("Interacción líneas -", f1,"x",f2,"-", var), x=f1, y=var, color=f2) +
+      theme_minimal()
+    print(p_line)
+    
+    # Boxplot de interacción
+    p_box_inter <- ggplot(datos, aes(x=interaction(.data[[f1]], .data[[f2]]), y=.data[[var]])) +
+      geom_boxplot(fill="lightgreen") +
+      labs(title=paste("Boxplot interacción -", var), x="Interacción", y=var) +
+      theme_minimal()
+    print(p_box_inter)
+  }
+}
+
+
+
+
+# ==========================================================
+#  Gráficos de líneas de error con letras de Tukey
+# ==========================================================
+for(var in respuestas){
+  cat("\n============================================\n")
+  cat(" Gráficos de líneas de error (Tukey) para:", var, "\n")
+  cat("============================================\n")
+  
+  #  Gráficos por factor individual
+  for(f in factores){
+    # Modelo y prueba de Tukey
+    modelo_factor <- aov(as.formula(paste0("`", var, "` ~ ", f)), data=datos)
+    tukey <- HSD.test(modelo_factor, f, group=TRUE)
+    
+    # --- Extraer tabla de grupos y renombrar columnas de forma segura ---
+    letras <- tukey$groups
+    letras$Nivel <- rownames(tukey$groups)
+    
+    colnames(letras) <- tolower(colnames(letras))
+    if("means" %in% colnames(letras)){
+      colnames(letras)[colnames(letras) == "means"] <- "media_tukey"
+    } else if("mean" %in% colnames(letras)){
+      colnames(letras)[colnames(letras) == "mean"] <- "media_tukey"
+    }
+    if("groups" %in% colnames(letras)){
+      colnames(letras)[colnames(letras) == "groups"] <- "letra"
+    }
+    
+    # --- Resumen de medias y SE ---
+    resumen <- datos %>%
+      group_by(.data[[f]]) %>%
+      summarise(
+        media = mean(.data[[var]], na.rm=TRUE),
+        se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+        .groups="drop"
+      ) %>%
+      rename(Nivel = !!f)
+    
+    datos_tukey <- left_join(resumen, letras, by="Nivel")
+    
+    # --- Gráfico ---
+    p_linea <- ggplot(datos_tukey, aes(x=Nivel, y=media, group=1)) +
+      geom_line(size=1, color="steelblue") +
+      geom_point(size=3, color="darkblue") +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2, color="gray40") +
+      geom_text(aes(label=letra, y=media + se + 0.05*max(media, na.rm=TRUE)),
+                vjust=0, fontface="bold", color="black", size=4) +
+      labs(title=paste("Líneas de error -", f, "-", var),
+           x=f, y=paste(var, "(media ± SE)")) +
+      theme_minimal(base_size=13)
+    
+    print(p_linea)
+  }
+  
+  #  Gráficos para la interacción entre factores
+  if(length(factores) > 1){
+    f1 <- factores[1]
+    f2 <- factores[2]
+    
+    # Modelo y prueba de Tukey
+    datos$interaccion <- interaction(datos[[f1]], datos[[f2]])
+    modelo_inter <- aov(as.formula(paste0("`", var, "` ~ interaccion")), data=datos)
+    tukey_inter <- HSD.test(modelo_inter, "interaccion", group=TRUE)
+    
+    letras_inter <- tukey_inter$groups
+    letras_inter$Interaccion <- rownames(tukey_inter$groups)
+    
+    colnames(letras_inter) <- tolower(colnames(letras_inter))
+    if("means" %in% colnames(letras_inter)){
+      colnames(letras_inter)[colnames(letras_inter) == "means"] <- "media_tukey"
+    } else if("mean" %in% colnames(letras_inter)){
+      colnames(letras_inter)[colnames(letras_inter) == "mean"] <- "media_tukey"
+    }
+    if("groups" %in% colnames(letras_inter)){
+      colnames(letras_inter)[colnames(letras_inter) == "groups"] <- "letra"
+    }
+    
+    resumen_inter <- datos %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(
+        media = mean(.data[[var]], na.rm=TRUE),
+        se = sd(.data[[var]], na.rm=TRUE)/sqrt(n()),
+        .groups="drop"
+      ) %>%
+      mutate(Interaccion = interaction(.data[[f1]], .data[[f2]]))
+    
+    datos_inter_tukey <- left_join(resumen_inter, letras_inter, by="Interaccion")
+    
+    # --- Gráfico ---
+    p_linea_inter <- ggplot(datos_inter_tukey, aes(x=.data[[f1]], y=media, color=.data[[f2]], group=.data[[f2]])) +
+      geom_line(size=1) +
+      geom_point(size=3) +
+      geom_errorbar(aes(ymin=media-se, ymax=media+se), width=0.2) +
+      geom_text(aes(label=letra, y=media + se + 0.05*max(media, na.rm=TRUE)),
+                vjust=0, fontface="bold", size=3.5, show.legend=FALSE) +
+      labs(title=paste("Interacción", f1, "x", f2, "-", var),
+           x=f1, y=paste(var, "(media ± SE)"), color=f2) +
+      theme_minimal(base_size=13)
+    
+    print(p_linea_inter)
+    
+    datos$interaccion <- NULL
+  }
+}
+
+
+
+
+###############################--MLM--###############################################################
+colnames(datos)
+
+respuestas <- c("Total_roedores", "Porc_captura")  # agregar todas tus variables
+
+#-----------------------------
+# Definir efectos
+#-----------------------------
+efectos_fijos <- c("Tratamiento")
+efectos_aleatorios <- c("(1 | Tiempo)")
+
+# Convertir factores
+factores <- c("Tratamiento", "Replica")
+for(f in factores){
+  if(f %in% colnames(datos)) datos[[f]] <- factor(datos[[f]])
+}
+
+#-----------------------------
+# Bucle completo para todas las variables
+#-----------------------------
+for(var in respuestas){
+  cat("\n====================================\n")
+  cat("Variable:", var, "\n")
+  cat("====================================\n")
+  
+  # Construir fórmula
+  fixed_str <- paste(efectos_fijos, collapse = " + ")
+  random_str <- paste(efectos_aleatorios, collapse = " + ")
+  formula <- as.formula(paste0(var, " ~ ", fixed_str, " + ", random_str))
+  
+  # Ajustar modelo
+  modelo <- lmer(formula, data = datos, REML = TRUE)
+  
+  # Resultados
+  print(summary(modelo))
+  print(anova(modelo))
+  
+  #-----------------------------
+  # Verificación de supuestos
+  #-----------------------------
+  
+  # Simulación de residuos DHARMa
+  sim_res <- simulateResiduals(modelo)
+  
+  # Boxplot por factor, evitando problema de longitud
+  trat <- model.frame(modelo)$Tratamiento
+  plotResiduals(sim_res, form = trat)
+  
+  # Gráficos generales de DHARMa
+  plot(sim_res)
+  
+  # Shapiro-Wilk
+  cat("\nShapiro-Wilk de residuos simulados:\n")
+  print(shapiro.test(residuals(sim_res)))
+  
+  # Residuos vs ajustados
+  fitted_vals <- fitted(modelo)
+  resids <- resid(modelo)
+  p1 <- ggplot(data.frame(Fitted=fitted_vals, Resid=resids), aes(x=Fitted, y=Resid)) +
+    geom_point() + 
+    geom_hline(yintercept=0, linetype="dashed", color="red") +
+    labs(title=paste("Residuos vs Ajustados:", var))
+  print(p1)
+  
+  # Residuos vs orden
+  p2 <- ggplot(data.frame(Order=1:length(resids), Resid=resids), aes(x=Order, y=Resid)) +
+    geom_point() + 
+    geom_hline(yintercept=0, linetype="dashed", color="red") +
+    labs(title=paste("Residuos vs Orden:", var))
+  print(p2)
+  
+  # ACF de residuos
+  cat("\nACF de residuos:\n")
+  acf(resids, main=paste("ACF de residuos:", var))
+}
+
+
+
+# Prueba de Tukey
+respuestas <- c("Total_roedores", "Porc_captura")
+nivel_significancia <- 0.15  # 15%
+
+#-----------------------------
+# Tukey por pares con nivel personalizado
+#-----------------------------
+cat("\n=== Tukey HSD (α =", nivel_significancia, ") ===\n")
+
+for(var in respuestas){
+  cat("\n", strrep("=", 50))
+  cat("\nVariable:", var, "\n")
+  cat(strrep("=", 50), "\n")
+  
+  modelo <- lmer(paste(var, "~ Tratamiento + (1 | Tiempo)"), data = datos)
+  
+  # Tukey con nivel personalizado
+  emm <- emmeans(modelo, ~ Tratamiento)
+  contrastes <- pairs(emm, adjust = "tukey")
+  
+  cat("Comparaciones por pares (Tukey):\n")
+  print(summary(contrastes, level = 1 - nivel_significancia))
+}
+
+#-----------------------------
+# Gráficos con letras de Tukey (15%)
+#-----------------------------
+for(var in respuestas){
+  cat("\n", strrep("=", 50))
+  cat("\nVariable:", var, "\n")
+  cat(strrep("=", 50), "\n")
+  
+  modelo <- lmer(paste(var, "~ Tratamiento + (1 | Tiempo)"), data = datos)
+  
+  # Letras de Tukey con alpha = 0.15
+  letras <- cld(emmeans(modelo, ~ Tratamiento), 
+                Letters = letters, 
+                adjust = "tukey", 
+                alpha = nivel_significancia)
+  
+  resumen <- as.data.frame(letras)
+  resumen <- resumen[order(-resumen$emmean), ]
+  
+  print(resumen)
+  
+  # Gráfico principal
+  p <- ggplot(resumen, aes(x = reorder(Tratamiento, -emmean), y = emmean)) +
+    geom_col(fill = "lightblue", alpha = 0.7) +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), 
+                  width = 0.2, color = "black", linewidth = 0.8) +
+    geom_text(aes(label = .group, y = upper.CL * 1.08), 
+              size = 5, fontface = "bold") +
+    labs(title = paste(var, "- α =", nivel_significancia),
+         x = "Tratamiento",
+         y = "Media ajustada",
+         caption = paste("Letras diferentes: p <", nivel_significancia)) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+}
+
+#-----------------------------
+# Versión con puntos (alternativa)
+#-----------------------------
+for(var in respuestas){
+  modelo <- lmer(paste(var, "~ Tratamiento + (1 | Tiempo)"), data = datos)
+  
+  letras <- cld(emmeans(modelo, ~ Tratamiento), 
+                Letters = letters, 
+                adjust = "tukey", 
+                alpha = nivel_significancia)
+  
+  resumen <- as.data.frame(letras)
+  resumen <- resumen[order(-resumen$emmean), ]
+  
+  p_puntos <- ggplot(resumen, aes(x = reorder(Tratamiento, -emmean), y = emmean)) +
+    geom_point(size = 3, color = "darkblue") +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), 
+                  width = 0.15, color = "red", linewidth = 1) +
+    geom_text(aes(label = .group, y = upper.CL * 1.1), 
+              size = 4, fontface = "bold", color = "darkgreen") +
+    labs(title = paste(var, "- α =", nivel_significancia),
+         x = "Tratamiento", 
+         y = var) +
+    theme_classic()
+  
+  print(p_puntos)
+}
+
+#############################################-MLG-##################################################
+
+############## Diagnóstico inicial:
+
+
+check_overdispersion <- function(model) {
+  rdf <- df.residual(model)
+  rp <- residuals(model, type = "pearson")
+  dispersion <- sum(rp^2) / rdf
+  return(dispersion)
+}
+
+
+is_count_variable <- function(x) {
+  return(is.numeric(x) && all(x == floor(x), na.rm = TRUE) && all(x >= 0, na.rm = TRUE))
+}
+
+
+is_proportion_variable <- function(x) {
+  return(is.numeric(x) &&
+           all(x >= 0, na.rm = TRUE) &&
+           all(x <= 1 | x <= 100, na.rm = TRUE))
+}
+
+
+
+diagnose_variables <- function(df) {
+  
+  for (var in names(df)) {
+    x <- df[[var]]
+    
+ 
+    if (!is.numeric(x)) next
+    
+    cat("\n=============================\n")
+    cat("Variable:", var, "\n")
+    cat("=============================\n")
+    
+ 
+    
+    if (is_count_variable(x)) {
+      cat("Tipo de variable detectado: CONTEO\n")
+      
+      media <- mean(x, na.rm = TRUE)
+      varianza <- var(x, na.rm = TRUE)
+      
+      cat("Media:", media, "\n")
+      cat("Varianza:", varianza, "\n\n")
+      
+
+      if (varianza > media * 1.5) {
+        cat("→ Evidencia de SOBREDISPERSIÓN (Var > Media).\n")
+      } else {
+        cat("→ No hay evidencia fuerte de sobredispersión por media-varianza.\n")
+      }
+      
+
+      try({
+        m_pois <- glm(x ~ 1, family = poisson)
+        disp <- check_overdispersion(m_pois)
+        cat("\nFactor de dispersión (Poisson):", disp, "\n")
+        
+        if (disp > 1.5) {
+          cat("→ El modelo Poisson está sobredisperso.\n")
+          cat("Sugerencia: Binomial Negativa o Quasi-Poisson.\n")
+        } else {
+          cat("→ Poisson parece adecuado.\n")
+        }
+      }, silent = TRUE)
+      
+      next
+    }
+    
+    
+    if (is_proportion_variable(x)) {
+      cat("Tipo de variable detectado: PROPORCIÓN / PORCENTAJE\n")
+      
+  
+      if (max(x, na.rm = TRUE) > 1) {
+        xp <- x / 100
+        cat("→ Detectado porcentaje. Convertido automáticamente a proporción 0–1.\n")
+      } else {
+        xp <- x
+      }
+      
+
+      if (any(xp == 0 | xp == 1, na.rm = TRUE)) {
+        cat("→ La variable contiene valores 0 o 1 exactos.\n")
+        cat("Sugerencia: Modelo Beta inflado (Zero-One Inflated Beta) o Quasi-binomial.\n")
+      } else {
+        cat("→ No hay valores extremos exactos.\n")
+        cat("Sugerencia: Beta Regression es adecuada.\n")
+      }
+      
+
+      try({
+        m_qb <- glm(xp ~ 1, family = quasibinomial)
+        disp <- check_overdispersion(m_qb)
+        
+        cat("\nFactor de dispersión (Quasi-binomial):", disp, "\n")
+        
+        if (disp > 1.5) {
+          cat("→ Sobredispersión importante.\n")
+          cat("Recomendación: Quasi-binomial o Beta regression.\n")
+        } else {
+          cat("→ Variabilidad moderada, modelos binomiales pueden funcionar.\n")
+        }
+      }, silent = TRUE)
+      
+      next
+    }
+    
+    
+    cat("Tipo de variable: Continua (no conteo, no proporción)\n")
+    cat("→ No se analiza distribución especial.\n")
+  }
+}
+
+
+diagnose_variables(datos) # resultados de diagnóstico 
+
+
+############# Variables de conteo ########################
+
+# Distribución binomial negativa y quassi poisson
+
+names(datos)
+
+factores <- c("Tratamiento", "Replica", "Tiempo")
+
+
+variables_respuesta <- c("Total_roedores")
+
+
+terminos_modelo <- c("Tratamiento*Tiempo", "Replica")
+
+
+familias_modelos <- c("binomial_negativa", "quasipoisson")  # binomial_negativa, quasipoisson
+
+
+if (!require(MASS)) install.packages("MASS"); library(MASS)
+if (!require(car)) install.packages("car"); library(car)
+if (!require(dplyr)) install.packages("dplyr"); library(dplyr)
+if (!require(purrr)) install.packages("purrr"); library(purrr)
+
+
+crear_formula <- function(respuesta, terminos) {
+  formula_str <- paste0(respuesta, " ~ ", paste(terminos, collapse = " + "))
+  as.formula(formula_str)
+}
+
+
+ajustar_modelo <- function(formula, datos, familia) {
+  tryCatch({
+    switch(familia,
+           "binomial_negativa" = glm.nb(formula, data = datos),
+           "quasipoisson" = glm(formula, data = datos, family = quasipoisson()),
+           stop("Familia no reconocida: ", familia)
+    )
+  }, error = function(e) {
+    warning("Error ajustando modelo: ", e$message)
+    return(NULL)
+  })
+}
+
+
+extraer_anova <- function(modelo, familia) {
+  if (is.null(modelo)) return(NULL)
+  
+  tryCatch({
+
+    anova_result <- Anova(modelo, type = "II", test = "LR")
+    anova_df <- as.data.frame(anova_result)
+    anova_df$Termino <- rownames(anova_df)
+    rownames(anova_df) <- NULL
+    
+
+    names(anova_df) <- c("LR_Chisq", "Df", "Pr_Chisq", "Termino")
+    
+    return(anova_df)
+  }, error = function(e) {
+    warning("Error en ANOVA: ", e$message)
+    return(NULL)
+  })
+}
+
+
+variables_existentes <- variables_respuesta[variables_respuesta %in% names(datos)]
+
+if (length(variables_existentes) == 0) {
+  stop("Error: Ninguna variable de respuesta existe en los datos")
+}
+
+
+resultados_mlg <- list()
+resultados_anova <- list()
+
+
+for (variable in variables_existentes) {
+  cat("\n", paste(rep("=", 60), collapse = ""), "\n")
+  cat("Modelando variable:", variable, "\n")
+  cat(paste(rep("=", 60), collapse = ""), "\n")
+  
+ 
+  formula_actual <- crear_formula(variable, terminos_modelo)
+  cat("Fórmula:", deparse(formula_actual), "\n\n")
+  
+
+  for (familia in familias_modelos) {
+    cat("--- Ajustando modelo", familia, "---\n")
+    
+    modelo <- ajustar_modelo(formula_actual, datos, familia)
+    
+    if (!is.null(modelo)) {
+   
+      nombre_modelo <- paste0(variable, "_", familia)
+      resultados_mlg[[nombre_modelo]] <- modelo
+      
+ 
+      anova_result <- extraer_anova(modelo, familia)
+      if (!is.null(anova_result)) {
+        anova_result$Variable <- variable
+        anova_result$Familia <- familia
+        resultados_anova[[nombre_modelo]] <- anova_result
+      }
+      
+    
+      cat("✓ Modelo ajustado exitosamente\n")
+      cat("  AIC:", ifelse(!is.null(modelo$aic), round(modelo$aic, 2), "NA"), "\n")
+      if (familia == "binomial_negativa") {
+        cat("  Theta:", round(modelo$theta, 3), "\n")
+      }
+      cat("  Dispersión:", round(summary(modelo)$dispersion, 3), "\n")
+      
+      
+      if (!is.null(anova_result)) {
+        cat("\n  ANOVA (Type II LR tests):\n")
+        print(anova_result[, c("Termino", "LR_Chisq", "Df", "Pr_Chisq")])
+      }
+      
+    } else {
+      cat("✗ Error ajustando modelo\n")
+    }
+    cat("\n")
+  }
+}
+
+
+if (length(resultados_anova) > 0) {
+ 
+  anova_completa <- do.call(rbind, resultados_anova)
+  rownames(anova_completa) <- NULL
+  
+  cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+  cat("TABLA RESUMEN COMPLETA - ANÁLISIS DE DEVIANZA (TYPE II TESTS)\n")
+  cat(paste(rep("=", 80), collapse = ""), "\n")
+  
+
+  for (variable in variables_existentes) {
+    for (familia in familias_modelos) {
+      nombre_modelo <- paste0(variable, "_", familia)
+      if (nombre_modelo %in% names(resultados_anova)) {
+        cat("\nResponse:", variable, "- Familia:", familia, "\n")
+        anova_var <- resultados_anova[[nombre_modelo]]
+ 
+        anova_display <- anova_var[, c("Termino", "LR_Chisq", "Df", "Pr_Chisq")]
+        anova_display$LR_Chisq <- round(anova_display$LR_Chisq, 4)
+        anova_display$Pr_Chisq <- round(anova_display$Pr_Chisq, 4)
+      
+        anova_display$Significancia <- ifelse(anova_display$Pr_Chisq < 0.001, "***",
+                                              ifelse(anova_display$Pr_Chisq < 0.01, "**",
+                                                     ifelse(anova_display$Pr_Chisq < 0.05, "*", 
+                                                            ifelse(anova_display$Pr_Chisq < 0.1, ".", ""))))
+        print(anova_display)
+        cat("\n")
+      }
+    }
+  }
+  
+
+  assign("modelos_mlg", resultados_mlg, envir = .GlobalEnv)
+  assign("tabla_anova", anova_completa, envir = .GlobalEnv)
+  assign("resultados_anova_detallados", resultados_anova, envir = .GlobalEnv)
+  
+  cat("✓ Modelos guardados en 'modelos_mlg'\n")
+  cat("✓ Tabla ANOVA completa en 'tabla_anova'\n")
+  cat("✓ Resultados ANOVA detallados en 'resultados_anova_detallados'\n")
+  
+} else {
+  cat("No se pudo generar ningún análisis ANOVA\n")
+}
+
+
+if (length(resultados_anova) > 0) {
+  cat("\n", paste(rep("#", 70), collapse = ""), "\n")
+  cat("RESUMEN EJECUTIVO - TÉRMINOS SIGNIFICATIVOS (p < 0.05)\n")
+  cat(paste(rep("#", 70), collapse = ""), "\n")
+  
+  significativos_encontrados <- FALSE
+  
+  for (variable in variables_existentes) {
+    for (familia in familias_modelos) {
+      nombre_modelo <- paste0(variable, "_", familia)
+      if (nombre_modelo %in% names(resultados_anova)) {
+        anova_var <- resultados_anova[[nombre_modelo]]
+        significativos <- anova_var[anova_var$Pr_Chisq < 0.05 & !is.na(anova_var$Pr_Chisq), ]
+        
+        if (nrow(significativos) > 0) {
+          significativos_encontrados <- TRUE
+          cat("\n", variable, "(", familia, "):\n")
+          for (i in 1:nrow(significativos)) {
+            cat("  • ", significativos$Termino[i], 
+                " (LR Chisq = ", round(significativos$LR_Chisq[i], 3),
+                ", p = ", round(significativos$Pr_Chisq[i], 4), ")\n", sep = "")
+          }
+        }
+      }
+    }
+  }
+  
+  if (!significativos_encontrados) {
+    cat("\nNo se encontraron términos significativos al nivel p < 0.05\n")
+  }
+}
+
+
+# Verificación de supuestos 
+
+if (!require(DHARMa)) install.packages("DHARMa"); library(DHARMa)
+if (!require(performance)) install.packages("performance"); library(performance)
+
+verificar_supuestos <- function(modelo, familia, variable_nombre) {
+  if (is.null(modelo)) return(NULL)
+  
+  cat("\n", paste(rep("-", 60), collapse = ""), "\n")
+  cat("VERIFICACIÓN DE SUPUESTOS:", variable_nombre, "-", familia, "\n")
+  cat(paste(rep("-", 60), collapse = ""), "\n")
+  
+  resultados_supuestos <- list()
+  
+  tryCatch({
+    
+    cat("\n1. ANÁLISIS DE RESIDUOS (DHARMa):\n")
+    simulationOutput <- simulateResiduals(fittedModel = modelo, plot = TRUE)
+    
+    
+    test_unif <- testUniformity(simulationOutput, plot = FALSE)
+    resultados_supuestos$test_uniformidad <- test_unif$p.value
+    cat("   Test de uniformidad: p =", round(test_unif$p.value, 4), 
+        ifelse(test_unif$p.value < 0.05, "✗ PROBLEMA", "✓ OK"), "\n")
+    
+    
+    test_disp <- testDispersion(simulationOutput, plot = FALSE)
+    resultados_supuestos$test_dispersion <- test_disp$p.value
+    cat("   Test de dispersión: p =", round(test_disp$p.value, 4),
+        ifelse(test_disp$p.value < 0.05, "✗ PROBLEMA DE DISPERSIÓN", "✓ OK"), "\n")
+    
+
+    test_out <- testOutliers(simulationOutput, plot = FALSE)
+    resultados_supuestos$test_outliers <- test_out$p.value
+    cat("   Test de outliers: p =", round(test_out$p.value, 4),
+        ifelse(test_out$p.value < 0.05, "✗ OUTLIERS DETECTADOS", "✓ OK"), "\n")
+    
+  }, error = function(e) {
+    cat("   Error en DHARMa:", e$message, "\n")
+  })
+  
+  tryCatch({
+    
+    cat("\n2. ANÁLISIS DE DISPERSIÓN:\n")
+    dispersion_ratio <- summary(modelo)$dispersion
+    resultados_supuestos$dispersion_ratio <- dispersion_ratio
+    cat("   Ratio de dispersión:", round(dispersion_ratio, 3), "\n")
+    
+    if (familia == "quasipoisson") {
+      if (dispersion_ratio > 1.5) {
+        cat("   ⚠️  Posible overdispersion (ratio > 1.5)\n")
+      } else if (dispersion_ratio < 0.5) {
+        cat("   ⚠️  Posible underdispersion (ratio < 0.5)\n")
+      } else {
+        cat("   ✓ Dispersión adecuada para quasipoisson\n")
+      }
+    }
+    
+    if (familia == "binomial_negativa") {
+      theta <- modelo$theta
+      resultados_supuestos$theta <- theta
+      cat("   Theta (binomial negativa):", round(theta, 3), "\n")
+      if (theta < 1) {
+        cat("   ⚠️  Theta bajo - puede indicar alta variabilidad\n")
+      } else {
+        cat("   ✓ Theta adecuado\n")
+      }
+    }
+    
+  }, error = function(e) {
+    cat("   Error en análisis de dispersión:", e$message, "\n")
+  })
+  
+  tryCatch({
+   
+    cat("\n3. GRÁFICO DE RESIDUOS vs AJUSTADOS:\n")
+    plot(fitted(modelo), residuals(modelo, type = "deviance"),
+         main = paste("Residuos vs Ajustados -", variable_nombre, "-", familia),
+         xlab = "Valores Ajustados", ylab = "Residuos Deviance")
+    abline(h = 0, col = "red", lty = 2)
+    
+  
+    correlation_test <- cor.test(fitted(modelo), residuals(modelo, type = "deviance"))
+    resultados_supuestos$correlacion_residuos <- correlation_test$p.value
+    cat("   Correlación residuos-ajustados: p =", round(correlation_test$p.value, 4),
+        ifelse(correlation_test$p.value < 0.05, "✗ PATRÓN NO ALEATORIO", "✓ OK"), "\n")
+    
+  }, error = function(e) {
+    cat("   Error en gráfico residuos:", e$message, "\n")
+  })
+  
+  tryCatch({
+  
+    cat("\n4. MULTICOLINEALIDAD (VIF):\n")
+    if (length(coef(modelo)) > 2) {
+      vif_values <- tryCatch({
+        vif(modelo)
+      }, error = function(e) {
+        return(NA)
+      })
+      
+      if (!any(is.na(vif_values))) {
+        resultados_supuestos$vif <- vif_values
+        cat("   Valores VIF:\n")
+        for (i in 1:length(vif_values)) {
+          cat("     ", names(vif_values)[i], ":", round(vif_values[i], 2), 
+              ifelse(vif_values[i] > 5, "⚠️", ""), 
+              ifelse(vif_values[i] > 10, "✗", ""), "\n")
+        }
+        
+        if (any(vif_values > 10)) {
+          cat("   ✗ PROBLEMA: Multicolinealidad severa (VIF > 10)\n")
+        } else if (any(vif_values > 5)) {
+          cat("   ⚠️  Posible multicolinealidad (VIF > 5)\n")
+        } else {
+          cat("   ✓ Sin problemas de multicolinealidad\n")
+        }
+      } else {
+        cat("   No se pudo calcular VIF para este modelo\n")
+      }
+    } else {
+      cat("   Modelo muy simple para cálculo de VIF\n")
+    }
+    
+  }, error = function(e) {
+    cat("   Error en VIF:", e$message, "\n")
+  })
+  
+  return(resultados_supuestos)
+}
+
+
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("INICIANDO VERIFICACIÓN DE SUPUESTOS PARA TODOS LOS MODELOS\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+
+resultados_supuestos <- list()
+
+
+for (variable in variables_existentes) {
+  for (familia in familias_modelos) {
+    nombre_modelo <- paste0(variable, "_", familia)
+    if (nombre_modelo %in% names(resultados_mlg)) {
+      modelo <- resultados_mlg[[nombre_modelo]]
+      supuestos <- verificar_supuestos(modelo, familia, variable)
+      resultados_supuestos[[nombre_modelo]] <- supuestos
+      
+     
+      cat("\n")
+      Sys.sleep(1)
+    }
+  }
+}
+
+
+
+cat("\n", paste(rep("#", 80), collapse = ""), "\n")
+cat("RESUMEN FINAL - VERIFICACIÓN DE SUPUESTOS\n")
+cat(paste(rep("#", 80), collapse = ""), "\n")
+
+problemas_detectados <- FALSE
+
+for (variable in variables_existentes) {
+  for (familia in familias_modelos) {
+    nombre_modelo <- paste0(variable, "_", familia)
+    if (nombre_modelo %in% names(resultados_supuestos)) {
+      supuestos <- resultados_supuestos[[nombre_modelo]]
+      
+    
+      problemas <- c()
+      
+      if (!is.null(supuestos$test_uniformidad) && supuestos$test_uniformidad < 0.05) {
+        problemas <- c(problemas, "Residuos no uniformes")
+      }
+      if (!is.null(supuestos$test_dispersion) && supuestos$test_dispersion < 0.05) {
+        problemas <- c(problemas, "Problemas de dispersión")
+      }
+      if (!is.null(supuestos$test_outliers) && supuestos$test_outliers < 0.05) {
+        problemas <- c(problemas, "Outliers significativos")
+      }
+      if (!is.null(supuestos$correlacion_residuos) && supuestos$correlacion_residuos < 0.05) {
+        problemas <- c(problemas, "Patrón en residuos")
+      }
+      
+      if (length(problemas) > 0) {
+        problemas_detectados <- TRUE
+        cat("\n⚠️  ", variable, "(", familia, "):\n")
+        cat("    Problemas:", paste(problemas, collapse = ", "), "\n")
+      } else {
+        cat("\n✓  ", variable, "(", familia, "): Supuestos cumplidos adecuadamente\n")
+      }
+    }
+  }
+}
+
+if (!problemas_detectados) {
+  cat("\n✅ TODOS LOS MODELOS CUMPLEN ADECUADAMENTE CON LOS SUPUESTOS\n")
+} else {
+  cat("\n🔴 ALGUNOS MODELOS PRESENTAN PROBLEMAS EN LOS SUPUESTOS - INTERPRETAR CON CAUTELA\n")
+}
+
+
+assign("resultados_supuestos", resultados_supuestos, envir = .GlobalEnv)
+cat("\n✓ Resultados de supuestos guardados en 'resultados_supuestos'\n")
+
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("RECOMENDACIONES:\n")
+cat("• Modelos con problemas de uniformidad: considerar transformaciones\n")        # Recomendaciones generales
+cat("• Modelos con overdispersion: binomial negativa suele ser mejor opción\n")
+cat("• Modelos con underdispersion: Poisson puede ser adecuado\n")
+cat("• Presencia de outliers: verificar datos y considerar modelos robustos\n")
+cat("• Multicolinealidad: simplificar el modelo o remover predictores correlacionados\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+
+# Prueba múltiple de medias y gráfico de líneas de error
+
+if (!require(emmeans)) install.packages("emmeans"); library(emmeans)
+if (!require(multcomp)) install.packages("multcomp"); library(multcomp)
+if (!require(ggplot2)) install.packages("ggplot2"); library(ggplot2)
+if (!require(multcompView)) install.packages("multcompView"); library(multcompView)
+
+
+nivel_significancia <- 0.15  # ajustar
+
+
+realizar_prueba_medias <- function(modelo, variable_nombre, familia, termino, alpha = 0.15) {
+  if (is.null(modelo)) return(NULL)
+  
+  cat("\n", paste(rep("-", 60), collapse = ""), "\n")
+  cat("PRUEBA MÚLTIPLE DE MEDIAS:", variable_nombre, "-", familia, "\n")
+  cat("Término:", termino, "- Nivel de significancia:", alpha, "\n")
+  cat(paste(rep("-", 60), collapse = ""), "\n")
+  
+  tryCatch({
+
+    emm <- emmeans(modelo, specs = termino)
+    
+
+    comparaciones <- pairs(emm, adjust = "tukey")
+    
+  
+    letras <- cld(emm, alpha = alpha, Letters = letters, adjust = "tukey")
+    
+
+    cat("\nMedias marginales estimadas:\n")
+    print(emm)
+    
+    cat("\nComparaciones múltiples (Tukey):\n")
+    print(comparaciones)
+    
+    cat("\nLetras de significancia (alpha =", alpha, "):\n")
+    print(letras)
+    
+    return(list(emm = emm, comparaciones = comparaciones, letras = letras))
+    
+  }, error = function(e) {
+    cat("Error en prueba de medias:", e$message, "\n")
+    return(NULL)
+  })
+}
+
+
+crear_grafico_lineas_error <- function(resultados_medias, variable_nombre, familia, termino) {
+  if (is.null(resultados_medias)) return(NULL)
+  
+  letras <- resultados_medias$letras
+  emm <- resultados_medias$emm
+  
+
+  plot_data <- as.data.frame(emm)
+  
+
+  if (!all(c("emmean", "lower.CL", "upper.CL") %in% names(plot_data))) {
+  
+    plot_data <- as.data.frame(confint(emm))
+  }
+  
+  
+  plot_data$.group <- letras$.group
+  
+
+  p <- ggplot(plot_data, aes(x = .data[[names(plot_data)[1]]], y = emmean)) +
+    geom_point(size = 3, color = "blue") +
+    geom_line(aes(group = 1), linetype = "dashed", alpha = 0.5, color = "blue") +
+    geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), 
+                  width = 0.2, linewidth = 0.8, color = "blue") +
+    geom_text(aes(label = .group, y = upper.CL), 
+              vjust = -0.8, size = 4, fontface = "bold", color = "red") +
+    labs(title = paste("Medias de", variable_nombre, "-", familia),
+         subtitle = paste("Término:", termino),
+         x = termino,
+         y = paste("Media de", variable_nombre),
+         caption = paste("Letras diferentes indican diferencias significativas (α =", nivel_significancia, ")")) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold", size = 12),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+  return(p)
+}
+
+
+crear_grafico_lineas_error_alt <- function(resultados_medias, variable_nombre, familia, termino) {
+  if (is.null(resultados_medias)) return(NULL)
+  
+  letras <- resultados_medias$letras
+  
+
+  plot_data <- as.data.frame(letras)
+  
+ 
+  names(plot_data) <- tolower(names(plot_data))
+  
+
+  if (!"lower.cl" %in% names(plot_data)) {
+   
+    plot_data$lower.cl <- plot_data$emmean - plot_data$se * 1.96
+    plot_data$upper.cl <- plot_data$emmean + plot_data$se * 1.96
+  }
+  
+
+  p <- ggplot(plot_data, aes(x = .data[[names(plot_data)[1]]], y = emmean)) +
+    geom_point(size = 3, color = "blue") +
+    geom_line(aes(group = 1), linetype = "dashed", alpha = 0.5, color = "blue") +
+    geom_errorbar(aes(ymin = lower.cl, ymax = upper.cl), 
+                  width = 0.2, linewidth = 0.8, color = "blue") +
+    geom_text(aes(label = .group, y = upper.cl), 
+              vjust = -0.8, size = 4, fontface = "bold", color = "red") +
+    labs(title = paste("Medias de", variable_nombre, "-", familia),
+         subtitle = paste("Término:", termino),
+         x = termino,
+         y = paste("Media de", variable_nombre),
+         caption = paste("Letras diferentes indican diferencias significativas (α =", nivel_significancia, ")")) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold", size = 14),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+  return(p)
+}
+
+
+crear_grafico_bigotes <- function(datos, variable_nombre, termino) {
+
+  if (!termino %in% names(datos)) {
+    cat("El término", termino, "no existe en los datos\n")
+    return(NULL)
+  }
+  
+
+  p <- ggplot(datos, aes(x = .data[[termino]], y = .data[[variable_nombre]])) +
+    geom_boxplot(width = 0.3, alpha = 0.7, outlier.shape = NA) +
+    geom_jitter(width = 0.1, alpha = 0.6, size = 1.5, color = "blue") +
+    stat_summary(fun = mean, geom = "point", shape = 18, size = 3, color = "red") +
+    labs(title = paste("Distribución de", variable_nombre),
+         subtitle = paste("Por niveles de", termino),
+         x = termino,
+         y = variable_nombre) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  print(p)
+  return(p)
+}
+
+
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("INICIANDO PRUEBAS MÚLTIPLES DE MEDIAS Y GRÁFICOS\n")
+cat("Nivel de significancia:", nivel_significancia, "\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+
+resultados_medias <- list()
+graficos_medias <- list()
+graficos_bigotes <- list()
+
+
+terminos_para_medias <- c("Tratamiento", "Tiempo")  # Ajustar según las FV
+
+# Bucle principal
+for (variable in variables_existentes) {
+  for (familia in familias_modelos) {
+    nombre_modelo <- paste0(variable, "_", familia)
+    
+    if (nombre_modelo %in% names(resultados_mlg)) {
+      modelo <- resultados_mlg[[nombre_modelo]]
+      
+      cat("\n", paste(rep("*", 70), collapse = ""), "\n")
+      cat("PROCESANDO:", variable, "-", familia, "\n")
+      cat(paste(rep("*", 70), collapse = ""), "\n")
+      
+     
+      for (termino in terminos_para_medias) {
+        if (termino %in% all.vars(formula(modelo))) {
+   
+          resultados <- realizar_prueba_medias(modelo, variable, familia, termino, nivel_significancia)
+          
+          if (!is.null(resultados)) {
+        
+            key <- paste0(variable, "_", familia, "_", termino)
+            resultados_medias[[key]] <- resultados
+            
+       
+            cat("\nGenerando gráfico de líneas de error...\n")
+            grafico <- crear_grafico_lineas_error_alt(resultados, variable, familia, termino)
+            graficos_medias[[key]] <- grafico
+            
+       
+            cat("Generando gráfico de bigotes...\n")
+            grafico_bigotes <- crear_grafico_bigotes(datos, variable, termino)
+            graficos_bigotes[[key]] <- grafico_bigotes
+            
+     
+            Sys.sleep(1)
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+cat("\n", paste(rep("#", 80), collapse = ""), "\n")
+cat("RESUMEN EJECUTIVO - PRUEBAS MÚLTIPLES DE MEDIAS\n")
+cat("Nivel de significancia utilizado:", nivel_significancia, "\n")
+cat(paste(rep("#", 80), collapse = ""), "\n")
+
+diferencias_encontradas <- FALSE
+
+for (key in names(resultados_medias)) {
+  resultados <- resultados_medias[[key]]
+  letras <- resultados$letras
+  
+
+  grupos_unicos <- unique(letras$.group)
+  
+  if (length(grupos_unicos) > 1) {
+    diferencias_encontradas <- TRUE
+    cat("\n🔍 DIFERENCIAS SIGNIFICATIVAS ENCONTRADAS:", key, "\n")
+    cat("   Grupos de letras:", paste(grupos_unicos, collapse = ", "), "\n")
+    
+ 
+    cat("   Medias por grupo:\n")
+    for (i in 1:nrow(letras)) {
+      cat("     ", as.character(letras[i, 1]), ":", 
+          round(letras$emmean[i], 3), "(", letras$.group[i], ")\n")
+    }
+  } else {
+    cat("\n✓ SIN DIFERENCIAS SIGNIFICATIVAS:", key, "\n")
+    cat("   Todas las medias pertenecen al mismo grupo:", grupos_unicos, "\n")
+  }
+}
+
+if (!diferencias_encontradas) {
+  cat("\n RESUMEN: No se encontraron diferencias significativas al nivel alpha =", nivel_significancia, "\n")
+} else {
+  cat("\n RESUMEN: Se encontraron diferencias significativas en algunos términos\n")
+}
+
+
+
+
+
+############# Porcentajes ########################
+
+
+
+if (!require(betareg)) install.packages("betareg"); library(betareg)
+if (!require(emmeans)) install.packages("emmeans"); library(emmeans)
+if (!require(car)) install.packages("car"); library(car)
+if (!require(ggplot2)) install.packages("ggplot2"); library(ggplot2)
+if (!require(scales)) install.packages("scales"); library(scales)
+if (!require(lmtest)) install.packages("lmtest"); library(lmtest)
+
+
+
+factores_prop <- c("Tratamiento", "Replica", "Tiempo")
+
+
+variables_proporciones <- c("Porc_captura")  
+
+
+terminos_modelo_prop <- c("Tratamiento*Tiempo", "Replica")
+
+
+familias_modelos_prop <- c("quasibinomial", "beta")  # quasibinomial, beta
+
+
+escala_variables <- list(
+  Porc_captura = "porcentaje",    # "proporcion" o "porcentaje"
+  Proporcion_exito = "proporcion" # "proporcion" o "porcentaje"
+)
+
+
+detectar_escala <- function(valores) {
+  if (all(valores >= 0 & valores <= 1, na.rm = TRUE)) {
+    return("proporcion")
+  } else if (all(valores >= 0 & valores <= 100, na.rm = TRUE)) {
+    return("porcentaje")
+  } else {
+    return("desconocida")
+  }
+}
+
+
+transformar_a_proporcion <- function(datos, variables, escalas) {
+  datos_transformados <- datos
+  for (variable in variables) {
+    if (variable %in% names(datos)) {
+      escala <- escalas[[variable]]
+      valores <- datos[[variable]]
+      
+
+      if (is.null(escala)) {
+        escala <- detectar_escala(valores)
+        cat("🔍 Variable", variable, "detectada como:", escala, "\n")
+      }
+      
+      if (escala == "porcentaje") {
+        datos_transformados[[variable]] <- valores / 100
+        cat("✓ Variable", variable, "transformada de porcentaje a proporción\n")
+      } else if (escala == "desconocida") {
+        cat("⚠️  Advertencia: La variable", variable, "tiene escala desconocida\n")
+        cat("   Valores entre", min(valores, na.rm = TRUE), "y", max(valores, na.rm = TRUE), "\n")
+      }
+    }
+  }
+  return(datos_transformados)
+}
+
+
+crear_formula_prop <- function(respuesta, terminos) {
+  formula_str <- paste0(respuesta, " ~ ", paste(terminos, collapse = " + "))
+  as.formula(formula_str)
+}
+
+
+ajustar_modelo_prop <- function(formula, datos, familia, variable) {
+  tryCatch({
+   
+    if (familia == "beta") {
+      y <- model.response(model.frame(formula, datos))
+
+      n <- length(y)
+      y_transf <- (y * (n - 1) + 0.5) / n
+      datos_temp <- datos
+      datos_temp[[variable]] <- y_transf
+      modelo <- betareg(formula, data = datos_temp)
+    } else {
+      modelo <- glm(formula, data = datos, family = quasibinomial())
+    }
+    return(modelo)
+  }, error = function(e) {
+    warning("Error ajustando modelo de proporciones: ", e$message)
+    return(NULL)
+  })
+}
+
+
+extraer_anova_prop <- function(modelo, familia, terminos_completos) {
+  if (is.null(modelo)) return(NULL)
+  
+  tryCatch({
+    if (familia == "quasibinomial") {
+  
+      anova_result <- Anova(modelo, type = "II", test = "F")
+      anova_df <- as.data.frame(anova_result)
+      anova_df$Termino <- rownames(anova_df)
+      rownames(anova_df) <- NULL
+      names(anova_df) <- c("F_value", "Df", "Df_res", "Pr_F", "Termino")
+      return(anova_df)
+      
+    } else if (familia == "beta") {
+ 
+      cat("   Calculando ANOVA para beta regresión (tests LR)...\n")
+      
+
+      resultados_anova <- data.frame()
+      formula_completa <- formula(modelo)
+      
+      for (termino in terminos_completos) {
+        tryCatch({
+    
+          if (grepl(":", termino)) {
+     
+            terminos_sin <- terminos_completos[terminos_completos != termino]
+          } else {
+            terminos_sin <- terminos_completos[terminos_completos != termino]
+          }
+          
+          if (length(terminos_sin) > 0) {
+            formula_reducida <- crear_formula_prop(as.character(formula_completa)[2], terminos_sin)
+            modelo_reducido <- betareg(formula_reducida, data = modelo$model)
+            
+
+            test_lr <- lrtest(modelo_reducido, modelo)
+            lr_chisq <- 2 * (logLik(modelo) - logLik(modelo_reducido))
+            p_valor <- test_lr[["Pr(>Chisq)"]][2]
+            
+            resultados_anova <- rbind(resultados_anova, data.frame(
+              Termino = termino,
+              Chisq = round(lr_chisq, 4),
+              Df = attr(lr_chisq, "df"),
+              Pr_Chisq = round(p_valor, 4)
+            ))
+          }
+        }, error = function(e) {
+          cat("   Error calculando test para término", termino, ":", e$message, "\n")
+        })
+      }
+      
+      return(resultados_anova)
+    }
+    
+  }, error = function(e) {
+    warning("Error en ANOVA de proporciones: ", e$message)
+    return(NULL)
+  })
+}
+
+
+extraer_resumen_beta <- function(modelo) {
+  if (is.null(modelo)) return(NULL)
+  
+  tryCatch({
+    sumario <- summary(modelo)
+    coeficientes <- sumario$coefficients$mean
+    
+
+    resultados <- data.frame(
+      Parametro = rownames(coeficientes),
+      Coeficiente = coeficientes[, "Estimate"],
+      Error_Std = coeficientes[, "Std. Error"],
+      z_value = coeficientes[, "z value"],
+      Pr_z = coeficientes[, "Pr(>|z|)"]
+    )
+    
+    return(resultados)
+  }, error = function(e) {
+    cat("Error en resumen beta:", e$message, "\n")
+    return(NULL)
+  })
+}
+
+
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("INICIANDO ANÁLISIS PARA PROPORCIONES Y PORCENTAJES\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+
+datos_prop <- transformar_a_proporcion(datos, variables_proporciones, escala_variables)
+
+
+variables_existentes_prop <- variables_proporciones[variables_proporciones %in% names(datos_prop)]
+
+if (length(variables_existentes_prop) == 0) {
+  stop("Error: Ninguna variable de proporción existe en los datos")
+}
+
+
+resultados_prop <- list()
+resultados_anova_prop <- list()
+resultados_coeficientes_prop <- list()
+
+
+for (variable in variables_existentes_prop) {
+  cat("\n", paste(rep("=", 60), collapse = ""), "\n")
+  cat("Modelando proporción:", variable, "\n")
+  cat(paste(rep("=", 60), collapse = ""), "\n")
+  
+
+  formula_actual <- crear_formula_prop(variable, terminos_modelo_prop)
+  cat("Fórmula:", deparse(formula_actual), "\n\n")
+  
+
+  for (familia in familias_modelos_prop) {
+    cat("--- Ajustando modelo", familia, "---\n")
+    
+    modelo <- ajustar_modelo_prop(formula_actual, datos_prop, familia, variable)
+    
+    if (!is.null(modelo)) {
+ 
+      nombre_modelo <- paste0(variable, "_", familia)
+      resultados_prop[[nombre_modelo]] <- modelo
+      
+     
+      cat("✓ Modelo ajustado exitosamente\n")
+      
+      if (familia == "quasibinomial") {
+        cat("  Dispersión:", round(summary(modelo)$dispersion, 3), "\n")
+        cat("  AIC:", round(AIC(modelo), 2), "\n")
+        
+   
+        anova_result <- extraer_anova_prop(modelo, familia, terminos_modelo_prop)
+        if (!is.null(anova_result)) {
+          anova_result$Variable <- variable
+          anova_result$Familia <- familia
+          resultados_anova_prop[[nombre_modelo]] <- anova_result
+          
+          cat("\n  ANOVA (Type II F-tests):\n")
+          anova_display <- anova_result[, c("Termino", "F_value", "Df", "Pr_F")]
+          anova_display$Pr_F <- round(anova_display$Pr_F, 4)
+          print(anova_display)
+        }
+        
+      } else if (familia == "beta") {
+        cat("  Pseudo R²:", round(summary(modelo)$pseudo.r.squared, 3), "\n")
+        cat("  Log-verosimilitud:", round(logLik(modelo), 2), "\n")
+        
+    
+        coef_result <- extraer_resumen_beta(modelo)
+        if (!is.null(coef_result)) {
+          coef_result$Variable <- variable
+          coef_result$Familia <- familia
+          resultados_coeficientes_prop[[nombre_modelo]] <- coef_result
+          
+          cat("\n  COEFICIENTES (modelo beta):\n")
+          coef_display <- coef_result[, c("Parametro", "Coeficiente", "Pr_z")]
+          coef_display$Coeficiente <- round(coef_display$Coeficiente, 4)
+          coef_display$Pr_z <- round(coef_display$Pr_z, 4)
+          coef_display$Significancia <- ifelse(coef_display$Pr_z < 0.001, "***",
+                                               ifelse(coef_display$Pr_z < 0.01, "**",
+                                                      ifelse(coef_display$Pr_z < 0.05, "*", 
+                                                             ifelse(coef_display$Pr_z < 0.1, ".", ""))))
+          print(coef_display)
+        }
+        
+
+        cat("\n  Intentando ANOVA alternativo para beta...\n")
+        anova_alt <- tryCatch({
+          extraer_anova_prop(modelo, familia, terminos_modelo_prop)
+        }, error = function(e) {
+          cat("   No se pudo calcular ANOVA para beta regresión\n")
+          return(NULL)
+        })
+        
+        if (!is.null(anova_alt)) {
+          anova_alt$Variable <- variable
+          anova_alt$Familia <- familia
+          resultados_anova_prop[[nombre_modelo]] <- anova_alt
+          cat("  ANOVA (Likelihood Ratio Tests):\n")
+          print(anova_alt)
+        }
+      }
+      
+    } else {
+      cat("✗ Error ajustando modelo\n")
+    }
+    cat("\n")
+  }
+}
+
+
+# Prueba múltiple de medias:
+
+# Modelo QUASIBINOMIAL
+
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("PRUEBAS MÚLTIPLES - MODELOS QUASIBINOMIAL\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+nivel_significancia_prop <- 0.15
+resultados_medias_quasibinomial <- list()
+graficos_quasibinomial <- list()
+
+terminos_para_medias_prop <- c("Tratamiento", "Tiempo")
+
+
+for (variable in variables_existentes_prop) {
+  cat("\n", paste(rep("=", 70), collapse = ""), "\n")
+  cat("VARIABLE:", variable, "- QUASIBINOMIAL\n")
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  
+  nombre_modelo <- paste0(variable, "_quasibinomial")
+  
+  if (nombre_modelo %in% names(resultados_prop)) {
+    modelo <- resultados_prop[[nombre_modelo]]
+    
+    for (termino in terminos_para_medias_prop) {
+      if (termino %in% all.vars(formula(modelo))) {
+        cat("\n▶ Procesando término:", termino, "\n")
+        
+      
+        resultados <- realizar_prueba_medias_quasibinomial(modelo, variable, termino, nivel_significancia_prop)
+        
+        if (!is.null(resultados)) {
+          key <- paste0(variable, "_quasibinomial_", termino)
+          resultados_medias_quasibinomial[[key]] <- resultados
+          
+        
+          escala_original <- escala_variables[[variable]]
+          if (is.null(escala_original)) {
+            escala_original <- "proporcion"
+          }
+          
+          cat("Generando gráfico para quasibinomial...\n")
+          grafico <- crear_grafico_proporciones(resultados, variable, "quasibinomial", termino, escala_original)
+          
+          if (!is.null(grafico)) {
+            graficos_quasibinomial[[key]] <- grafico
+            cat("✓ Gráfico QUASIBINOMIAL generado exitosamente para", termino, "\n")
+          } else {
+            cat("✗ No se pudo generar el gráfico QUASIBINOMIAL para", termino, "\n")
+          }
+        } else {
+          cat("✗ No se pudieron obtener resultados QUASIBINOMIAL para", termino, "\n")
+        }
+      }
+    }
+  } else {
+    cat("Modelo QUASIBINOMIAL para", variable, "no encontrado\n")
+  }
+}
+
+
+# Modelo BETA
+
+cat("\n", paste(rep("=", 80), collapse = ""), "\n")
+cat("PRUEBAS MÚLTIPLES - MODELOS BETA (CORREGIDO)\n")
+cat(paste(rep("=", 80), collapse = ""), "\n")
+
+resultados_medias_beta <- list()
+graficos_beta <- list()
+
+
+realizar_prueba_medias_beta_corregido <- function(modelo, variable_nombre, termino, alpha = 0.15) {
+  tryCatch({
+
+    datos_originales <- modelo$model
+    formula_modelo <- formula(modelo)
+    
+    cat("   Usando datos del modelo beta...\n")
+    
+  
+    medias_grupo <- aggregate(datos_originales[[1]], 
+                              by = list(grupo = datos_originales[[termino]]), 
+                              FUN = mean, na.rm = TRUE)
+    
+ 
+    se_grupo <- aggregate(datos_originales[[1]], 
+                          by = list(grupo = datos_originales[[termino]]), 
+                          FUN = function(x) sd(x, na.rm = TRUE)/sqrt(length(na.omit(x))))
+    
+
+    resultados <- data.frame(
+      grupo = medias_grupo$grupo,
+      emmean = medias_grupo$x,
+      SE = se_grupo$x,
+      lower.CL = medias_grupo$x - 1.96 * se_grupo$x,
+      upper.CL = medias_grupo$x + 1.96 * se_grupo$x
+    )
+    
+
+    formula_anova <- as.formula(paste(names(datos_originales)[1], "~", termino))
+    anova_simple <- aov(formula_anova, data = datos_originales)
+    
+ 
+    tukey_result <- TukeyHSD(anova_simple)
+    
+
+    letras_tukey <- multcompLetters4(anova_simple, tukey_result)
+    letras_vector <- letras_tukey[[1]]$Letters
+    
+
+    letras_df <- data.frame(
+      grupo = names(letras_vector),
+      .group = as.character(letras_vector)
+    )
+    
+
+    resultados <- merge(resultados, letras_df, by.x = "grupo", by.y = "grupo")
+    
+    cat("\n   Medias BETA (calculadas manualmente):\n")
+    print(resultados[, c("grupo", "emmean", ".group")])
+    
+
+    comparaciones_df <- as.data.frame(tukey_result[[1]])
+    comparaciones_df$comparison <- rownames(comparaciones_df)
+    rownames(comparaciones_df) <- NULL
+    
+    return(list(
+      emm = resultados,
+      comparaciones = comparaciones_df,
+      letras = resultados
+    ))
+    
+  }, error = function(e) {
+    cat("   Error en método beta corregido:", e$message, "\n")
+    return(NULL)
+  })
+}
+
+
+for (variable in variables_existentes_prop) {
+  cat("\n", paste(rep("=", 70), collapse = ""), "\n")
+  cat("VARIABLE:", variable, "- BETA\n")
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  
+  nombre_modelo <- paste0(variable, "_beta")
+  
+  if (nombre_modelo %in% names(resultados_prop)) {
+    modelo <- resultados_prop[[nombre_modelo]]
+    
+    for (termino in terminos_para_medias_prop) {
+      if (termino %in% all.vars(formula(modelo))) {
+        cat("\n▶ Procesando término:", termino, "\n")
+        
+       
+        resultados <- realizar_prueba_medias_beta_corregido(modelo, variable, termino, nivel_significancia_prop)
+        
+        if (!is.null(resultados)) {
+          key <- paste0(variable, "_beta_", termino)
+          resultados_medias_beta[[key]] <- resultados
+          
+    
+          escala_original <- escala_variables[[variable]]
+          if (is.null(escala_original)) {
+            escala_original <- "proporcion"
+          }
+          
+          cat("   Generando gráfico para beta...\n")
+          grafico <- crear_grafico_proporciones(resultados, variable, "beta", termino, escala_original)
+          
+          if (!is.null(grafico)) {
+            graficos_beta[[key]] <- grafico
+            cat("   ✓ Gráfico BETA generado exitosamente para", termino, "\n")
+          } else {
+            cat("   ✗ No se pudo generar el gráfico BETA para", termino, "\n")
+          }
+        } else {
+          cat("   ✗ No se pudieron obtener resultados BETA para", termino, "\n")
+        }
+      } else {
+        cat("   ⚠️  El término", termino, "no está en el modelo\n")
+      }
+    }
+  } else {
+    cat("   Modelo BETA para", variable, "no encontrado\n")
+  }
+}
+
+######################################################################################################################
