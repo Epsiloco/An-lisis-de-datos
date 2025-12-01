@@ -1,69 +1,132 @@
-# MLG: distribución Binomial negativa con función de enlace logarítmica--------------------------------------
-colnames(df)
-m1 <- glm.nb(insectos_m2 ~ insecticida + bloque, data = df)
+# Instalar y cargar paquetes
+if (!require("MASS")) install.packages("MASS")
+if (!require("betareg")) install.packages("betareg")
+if (!require("emmeans")) install.packages("emmeans")
+if (!require("DHARMa")) install.packages("DHARMa")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("performance")) install.packages("performance")
 
-summary(m1)
-Anova(m1)
-
-# Validación de supuestos del modelo
-
-simulationOutput <- simulateResiduals(fittedModel = m1, n = 1000)
-plot(simulationOutput)                                               #pruebas de normalidad y homocedasticidad
-plotResiduals(simulationOutput, form = df$insecticida) # Box-plot
-plotResiduals(simulationOutput, form = df$bloque) # Box-plot/bloque o repetición 
-testUniformity(simulationOutput)
-testDispersion(simulationOutput)
-
-# Gráfico de influencia: Multicolinealidad y efectos que influyen 
-influencePlot(m1, id.n = 3)
-
-# Pruebas post-hoc
-emm_m1 <- emmeans(m1, ~ insecticida)
-pairs(emm_m1, adjust = "tukey")
-cld_m1 <- cld(emm_m1, Letters = letters, adjust = "sidak", type = "response")
-cld_m1
-
-# Gráfico de barras con líneas de error
-emm_df <- as.data.frame(cld_m1)
-
-ggplot(emm_df, aes(x = insecticida, y = response)) +
-  geom_col(fill = "steelblue", width = 0.7) +
-  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.15) +
-  geom_text(aes(label = .group), vjust = -0.5, size = 5) +
-  labs(
-    x = "Tratamiento (Insecticida)",
-    y = "Media ajustada (Insectos/m2)",
-    title = "Medias ajustadas y agrupaciones (GLM binomial negativo)"
-  ) +
-  theme_minimal(base_size = 13)
-
-
-# Modelo Poisson----------------------------------------
-
-m_pois <- glm(insectos_m2 ~ bloque + insecticida, 
-              family = poisson(link = "log"), 
-              data = df)
-
+library(MASS)
+library(betareg)
+library(emmeans)
 library(DHARMa)
-simulationOutput <- simulateResiduals(fittedModel = m_pois, n = 1000)
-testDispersion(simulationOutput)  # DHARMa detectará la sobredispersión
-plot(simulationOutput)
+library(ggplot2)
+library(performance)
 
+# 1. MODELO BINOMIAL NEGATIVA
+modelo_nb <- glm.nb(conteo ~ Tratamiento + Replica, data = datos)
+summary(modelo_nb)
 
+sim_res_nb <- simulateResiduals(fittedModel = modelo_nb, n = 1000)
+plot(sim_res_nb)
+testDispersion(sim_res_nb)
 
-# MLG con distribución quassi poisson--------------------------------------------------
-names(df)
+ems_nb_trat <- emmeans(modelo_nb, ~ Tratamiento, type = "response")
+pairs_nb_trat <- pairs(ems_nb_trat, adjust = "tukey")
+print(ems_nb_trat)
+print(pairs_nb_trat)
 
-m_qp<- glm(insectos_m2 ~ bloque + insecticida, family = quasipoisson(link = "log"), data = df)
-summary(m_qp)
-Anova(m_qp, test.statistic = "F")
+# 2. MODELO QUASI-POISSON
+modelo_qp <- glm(conteo ~ Tratamiento + Replica, 
+                family = quasipoisson(link = "log"), 
+                data = datos)
+summary(modelo_qp)
 
+sim_res_qp <- simulateResiduals(fittedModel = modelo_qp, n = 1000)
+plot(sim_res_qp)
 
+ems_qp_trat <- emmeans(modelo_qp, ~ Tratamiento, type = "response")
+pairs_qp_trat <- pairs(ems_qp_trat, adjust = "tukey")
+print(ems_qp_trat)
+print(pairs_qp_trat)
 
-simulationOutput <- simulateResiduals(fittedModel = m_qp, n = 1000)
-plot(simulationOutput)          
-testUniformity(simulationOutput) 
-testDispersion(simulationOutput) 
-testOutliers(simulationOutput)   
+# 3. MODELO QUASI-BINOMIAL (para porcentajes 0-100%)
+# Convertir porcentaje a proporción
+datos$prop_porcentaje <- datos$porcentaje / 100
 
+modelo_qb <- glm(prop_porcentaje ~ Tratamiento + Replica,
+                family = quasibinomial(link = "logit"),
+                data = datos,
+                weights = rep(100, nrow(datos)))
+summary(modelo_qb)
 
+sim_res_qb <- simulateResiduals(fittedModel = modelo_qb, n = 1000)
+plot(sim_res_qb)
+testDispersion(sim_res_qb)
+
+ems_qb_trat <- emmeans(modelo_qb, ~ Tratamiento, type = "response")
+ems_qb_porcentaje <- ems_qb_trat
+ems_qb_porcentaje@grid$emmean <- ems_qb_porcentaje@grid$emmean * 100
+pairs_qb_trat <- pairs(ems_qb_trat, adjust = "tukey")
+
+print(ems_qb_porcentaje)
+print(pairs_qb_trat)
+
+# 4. MODELO BETA REGRESSION (para porcentajes 0-100%)
+# Convertir y ajustar límites
+datos$prop_beta <- datos$porcentaje / 100
+epsilon <- 0.001
+datos$prop_beta[datos$prop_beta == 0] <- epsilon
+datos$prop_beta[datos$prop_beta == 1] <- 1 - epsilon
+
+modelo_beta <- betareg(prop_beta ~ Tratamiento + Replica, data = datos)
+summary(modelo_beta)
+
+residuos_beta <- residuals(modelo_beta, type = "deviance")
+fitted_beta <- fitted(modelo_beta)
+
+par(mfrow = c(2, 2))
+plot(fitted_beta, residuos_beta)
+abline(h = 0, col = "red")
+qqnorm(residuos_beta)
+qqline(residuos_beta)
+hist(residuos_beta)
+plot(density(residuos_beta))
+par(mfrow = c(1, 1))
+
+ems_beta_trat <- emmeans(modelo_beta, ~ Tratamiento, type = "response")
+ems_beta_porcentaje <- ems_beta_trat
+ems_beta_porcentaje@grid$emmean <- ems_beta_porcentaje@grid$emmean * 100
+pairs_beta_trat <- pairs(ems_beta_trat, adjust = "tukey")
+
+print(ems_beta_porcentaje)
+print(pairs_beta_trat)
+
+# RESUMEN COMPARATIVO
+cat("BINOMIAL NEGATIVA - Medias:\n")
+print(ems_nb_trat)
+cat("Comparaciones:\n")
+print(pairs_nb_trat)
+
+cat("QUASI-POISSON - Medias:\n")
+print(ems_qp_trat)
+cat("Comparaciones:\n")
+print(pairs_qp_trat)
+
+cat("QUASI-BINOMIAL - Medias (%):\n")
+print(ems_qb_porcentaje)
+cat("Comparaciones:\n")
+print(pairs_qb_trat)
+
+cat("BETA REGRESSION - Medias (%):\n")
+print(ems_beta_porcentaje)
+cat("Comparaciones:\n")
+print(pairs_beta_trat)
+
+# GRÁFICO COMPARATIVO
+resultados_grafico <- data.frame(
+  Modelo = rep(c("Binomial Neg", "Quasi-Poisson", "Quasi-Binomial", "Beta"), 
+               each = nrow(summary(ems_nb_trat))),
+  Tratamiento = rep(summary(ems_nb_trat)$Tratamiento, 4),
+  Media = c(
+    summary(ems_nb_trat)$emmean,
+    summary(ems_qp_trat)$emmean,
+    summary(ems_qb_porcentaje)$emmean,
+    summary(ems_beta_porcentaje)$emmean
+  )
+)
+
+ggplot(resultados_grafico, aes(x = Tratamiento, y = Media, fill = Modelo)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Comparación de medias ajustadas por modelo", y = "Media ajustada") +
+  theme_minimal()
