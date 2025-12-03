@@ -13,9 +13,13 @@ library(DHARMa)
 library(ggplot2)
 library(performance)
 
+
+
 # 1. MODELO BINOMIAL NEGATIVA
-modelo_nb <- glm.nb(conteo ~ Tratamiento + Replica, data = datos)
+attach(datos)
+modelo_nb <- glm.nb(datos$ind_m2 ~ datos$Tratamiento + datos$Replica, data = datos)
 summary(modelo_nb)
+Anova(modelo_nb)
 
 sim_res_nb <- simulateResiduals(fittedModel = modelo_nb, n = 1000)
 plot(sim_res_nb)
@@ -25,6 +29,65 @@ ems_nb_trat <- emmeans(modelo_nb, ~ Tratamiento, type = "response")
 pairs_nb_trat <- pairs(ems_nb_trat, adjust = "tukey")
 print(ems_nb_trat)
 print(pairs_nb_trat)
+
+
+
+
+# Cargar librerías necesarias
+library(emmeans)
+library(multcomp)
+library(ggplot2)
+library(dplyr)
+
+# 1. Generar el Compact Letter Display
+cld_nb_trat <- cld(ems_nb_trat,
+                   alpha = 0.15,
+                   Letters = LETTERS,
+                   adjust = "tukey")
+
+# 2. Convertir el resultado a un data frame y preparar la columna de etiquetas
+cld_df <- as.data.frame(cld_nb_trat)
+
+# NOTA: Imprime los nombres de las columnas para verificar, si el error persiste:
+# print(names(cld_df)) 
+
+# Crear la columna de etiquetas
+cld_df <- cld_df %>%
+  mutate(etiqueta = .group)
+
+# 3. Creación del Gráfico de Líneas de Error, USANDO NOMBRES CORRECTOS:
+grafico_tukey_nb <- ggplot(cld_df, aes(x = Tratamiento, y = response)) + # <--- ¡CAMBIO CLAVE AQUÍ!
+  
+  # Bigotes (Intervalos de Confianza)
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL),
+                width = 0.2,
+                linewidth = 0.8,
+                color = "gray40") +
+  
+  # Puntos (Medias Estimadas)
+  geom_point(size = 4, color = "red") +
+  
+  # Etiquetas de Letras de Tukey (colocadas por encima del bigote superior)
+  geom_text(aes(label = etiqueta, y = asymp.UCL),
+            vjust = -0.5,
+            size = 5,
+            color = "black",
+            fontface = "bold") +
+  
+  # Ajustes estéticos y títulos
+  labs(title = "Medias Estimadas por Tratamiento con Letras de Tukey",
+       subtitle = "Basado en el Modelo GLM Negativo Binomial",
+       x = "Tratamiento",
+       y = "Media Estimada de la Respuesta (con IC al 95%)") +
+  
+  # Tema
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5))
+
+# 4. Imprimir el gráfico
+print(grafico_tukey_nb)
+
 
 # 2. MODELO QUASI-POISSON
 modelo_qp <- glm(conteo ~ Tratamiento + Replica, 
