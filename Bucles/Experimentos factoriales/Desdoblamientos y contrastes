@@ -1,0 +1,94 @@
+################### Desdoblamientos y contrastes ##############################
+library(car)      
+library(emmeans)  
+library(agricolae) 
+library(dplyr)
+
+
+colnames(datos)
+
+VARIABLES_RESPUESTA <- c("altura", "diametro")
+
+FACTORES_PRINCIPALES <- c("Tratamiento", "dosis_aplicada")
+
+ALPHA_TUKEY <- 0.15 
+DATOS_FUENTE <- datos 
+
+
+NUM_VARIABLES <- length(VARIABLES_RESPUESTA)
+
+FACTORES_INTERACCION <- rep(list(FACTORES_PRINCIPALES), NUM_VARIABLES)
+
+
+ejecutar_analisis_robusto <- function(y_var, factor_A, factor_B, data_obj, alpha_val) {
+  
+  data_temp <- data_obj
+  
+  data_temp[[factor_A]] <- as.factor(data_temp[[factor_A]])
+  data_temp[[factor_B]] <- as.factor(data_temp[[factor_B]])
+  
+  
+  cat("\n======================================================\n")
+  cat(paste("ANALIZANDO:", y_var, "vs", factor_A, "*", factor_B, "\n"))
+  cat("======================================================\n")
+  
+  # A. MODELO LINEAL (ANOVA de 2 Vías y Desdoblamientos)
+  formula_interaccion <- as.formula(paste(y_var, "~", factor_A, "*", factor_B))
+  m0 <- lm(formula_interaccion, data = data_temp)
+  
+  cat("\n--- Medias Ajustadas (emmeans) y Desdoblamiento ---\n")
+  
+  # Desdoblamiento: F1 | F2
+  emm_AB <- emmeans(m0, as.formula(paste("~", factor_A, "|", factor_B))) 
+  desdoblamiento_cld <- cld(emm_AB, type="response", 
+                            alpha = alpha_val, Letters = letters, 
+                            adjust = "tukey", reversed=T)
+  
+  print(desdoblamiento_cld)
+  
+  # B. CONTRASTES ENTRE TRATAMIENTOS (ANOVA 1-Vía simple y TukeyHSD)
+  cat("\n--- Contraste Tukey HSD para Factores Simples ---\n")
+  
+  # 1. Modelo para Factor A
+  formula_A <- as.formula(paste(y_var, "~", factor_A))
+  modelo_A <- aov(formula_A, data = data_temp)
+  
+  cat(paste("\nResultado de Tukey HSD para:", factor_A, "\n"))
+  tryCatch(
+    print(TukeyHSD(modelo_A, conf.level = 1 - alpha_val)),
+    error = function(e) {
+      cat(paste("ERROR al calcular Tukey HSD para", factor_A, ":", conditionMessage(e), "\n"))
+    }
+  )
+  
+  # 2. Modelo para Factor B
+  formula_B <- as.formula(paste(y_var, "~", factor_B))
+  modelo_B <- aov(formula_B, data = data_temp)
+  
+  cat(paste("\nResultado de Tukey HSD para:", factor_B, "\n"))
+  tryCatch(
+    print(TukeyHSD(modelo_B, conf.level = 1 - alpha_val)),
+    error = function(e) {
+      cat(paste("ERROR al calcular Tukey HSD para", factor_B, ":", conditionMessage(e), "\n"))
+    }
+  )
+}
+
+
+if (length(FACTORES_PRINCIPALES) != 2) {
+  stop("ERROR: Por favor, defina exactamente dos factores en FACTORES_PRINCIPALES.")
+}
+
+for (i in 1:NUM_VARIABLES) {
+  
+  y <- VARIABLES_RESPUESTA[i]
+  factores <- FACTORES_INTERACCION[[i]]
+  f1 <- factores[1]
+  f2 <- factores[2]
+  
+  ejecutar_analisis_robusto(y_var = y, 
+                            factor_A = f1, 
+                            factor_B = f2, 
+                            data_obj = DATOS_FUENTE, 
+                            alpha_val = ALPHA_TUKEY)
+}
