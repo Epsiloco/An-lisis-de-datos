@@ -1,0 +1,492 @@
+rm(list=ls())
+pacman::p_load(readxl,lme4,lmerTest, MASS, DHARMa,car,multcomp,hnp,dplyr,tidyr,
+               ggplot2,extrafont,gridExtra,ggiraphExtra,tinytex,reshape2,ggpubr, 
+               emmeans,lsmeans,multcompView,effects, vegan,tidyverse,knitr,kableExtra,ggrepel) 
+
+
+windowsFonts(Arial=windowsFont("Arial"))
+
+#influenceIndexPlot(modelo1,vars=c('Studentized','Cook','Hat'),id.n=3)
+
+
+##### COmpleto ####################
+
+Data2 <- read_excel("Consolidado Distanciamiento de siembra.xlsx", sheet="Data_R1") %>% 
+  filter(Tratamiento%in%c("1.4", "1.5", "1.75")#, Finca!="4"
+         ) 
+
+Data2
+
+Data2$Tratamiento <-as.factor(Data2$Tratamiento)
+Data2$Replica   <-as.factor(Data2$Replica)
+Data2$Descripcion   <-as.factor(Data2$Descripcion)
+Data2$Lote<-as.factor(Data2$Lote)
+#Data2$FECHA<-as.Date(Data2$FECHA)
+head(Data2)
+str(Data2)
+attach(Data2)
+
+
+
+# 1. Cargar y preparar datos
+Data3 <- read_excel("Consolidado Distanciamiento de siembra.xlsx", sheet="Data_R1") %>% 
+  filter(Tratamiento%in%c("1.4", "1.5", "1.75")
+  ) %>% filter(Bloque=="Y")
+
+str(Data3)
+
+# 2. Variables a analizar
+vars <- c("TCH","TCH_Rel","Rendimiento", "Rend_Rel", "TAH_Rel","TAH","Pureza", "P_Rel"#,
+          #"Mad_SF","Hum_SF","NDVI_SF", "Bio_SF", "Fol_SF"
+)
+
+# 3. Función para ajustar modelo y extraer CLD
+resultados_list <- lapply(vars, function(var) {
+  # fórmula dinámica
+  formula <- as.formula(paste(var, "~ Tratamiento"))
+  
+  # modelo
+  modelo <- lm(formula, data = Data3)
+  
+  # ANOVA
+  aov_result <- Anova(modelo, type = 2)
+  print(kable(aov_result, digits = 2, format = "html", caption = paste("Anova para", var)) %>%
+          kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                        full_width = FALSE, position = "center"))
+  
+  # Emmeans y letras
+  tb_means <- emmeans(modelo, ~Tratamiento) %>%
+    multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE, alpha = 0.2) %>%
+    as.data.frame()
+  tb_means$Variable <- var
+  return(tb_means)
+})
+
+# 4. Unir resultados
+tabla_todo <- bind_rows(resultados_list) %>% mutate(Variable_etiqueta = case_when(
+  Variable == "TCH" ~ "TCH",
+  Variable == "TCH_Rel" ~ "TCH Relativo",
+  Variable == "Rendimiento" ~ "Rendimiento",
+  Variable == "Rend_Rel" ~ "Rendimiento Relativo",
+  Variable == "TAH" ~ "TAH",
+  Variable == "TAH_Rel" ~ "TAH Relativo",
+  Variable == "Pureza" ~ "Pureza",
+  Variable == "P_Rel" ~ "Pureza Relativa",
+  TRUE ~ Variable  # Por si aparece otra
+)) %>% mutate(Variable_etiqueta = factor(Variable_etiqueta,
+                                         levels = c("TCH","TCH Relativo","Rendimiento",
+                                                    "Rendimiento Relativo","TAH",
+                                                    "TAH Relativo","Pureza",
+                                                    "Pureza Relativa"))) %>% 
+  group_by(Variable_etiqueta) %>%
+  mutate(Tratamiento_ordenado = reorder(Tratamiento, emmean)) %>%
+  ungroup()
+
+# 5. Gráfico combinado
+gg_all <- ggplot(tabla_todo, aes(y = Tratamiento_ordenado, x = emmean)) +
+  geom_errorbarh(aes(xmin = emmean - SE, xmax = emmean + SE), height = 0.2) +
+  geom_point(size = 3) +
+  geom_text(aes(label = sprintf("%.2f %s", emmean, trimws(.group))),
+            hjust = -0.1, vjust = -1, size = 4.5, family = "Arial") +
+  facet_wrap(~ Variable_etiqueta, scales = "free_x",2,4) +
+  labs(x = "Media relativa estimada ± SE", y = "Tratamiento",
+       title = "Comparación de medias por Tratamiento") +
+  theme_minimal(base_family = "Arial") +
+  theme(strip.text = element_text(size = 13),
+        text = element_text(size = 12)) +
+  theme_classic2()
+
+# 6. Mostrar gráfico
+gg_all
+
+
+
+ggsave("GT Distancimiento.png", gg_all, width = 400, height = 200, dpi = 900, units = "mm")
+
+
+
+
+
+
+
+
+Data2 %>% ggplot()+
+  aes(x=Tratamiento, y=TCH, col=Tratamiento, fill=Tratamiento)+
+  #geom_hline(yintercept = 1)+
+  geom_jitter(width = 0.2, fill=0.1)+
+  labs(y="TCH", x="Distanciamiento de siembra")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  geom_text(aes(x=Tratamiento,y=TCH+10,label = round(TCH, digits = 2)))+
+  facet_wrap(~Descripcion*Replica)
+
+
+Data2 %>% ggplot()+
+  aes(x=Tratamiento, y=TCH_Rel, col=Tratamiento, fill=Tratamiento)+
+  geom_hline(yintercept = 1)+
+  geom_jitter(width = 0.2, fill=0.1)+
+  labs(y="TCH relativo", x="Distanciamiento de siembra")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  geom_text_repel(aes(x=Tratamiento,y=TCH_Rel+0.1,label = round(TCH_Rel, digits = 2)))+
+  facet_wrap(~Descripcion*Replica)  
+
+
+
+Data2 %>% ggplot()+
+  aes(x=Tratamiento, y=TCH_Rel, col=Tratamiento, fill=Tratamiento)+
+  geom_hline(yintercept = 1)+
+  geom_jitter(width = 0.2, fill=0.1, alpha=0.5, size=6)+
+  labs(y="TCH relativo", x="Distanciamiento de siembra")+
+  theme_classic()+
+  theme(legend.position = "top")+
+  geom_text_repel(aes(x=Tratamiento,y=TCH_Rel,label = round(TCH_Rel, digits = 2)))
+
+
+##########  Anova individual #######
+
+Data_playa<-Data2 %>% #filter(Tratamiento%in%c("1.40 ILU","1.4")) %>% 
+  filter(Descripcion=="San Rafael", No_corte=="1")
+
+modelo1<-lm(TCH~Tratamiento+Replica, data = Data_playa#[-c(6,15),]
+)
+influenceIndexPlot(modelo1,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo1))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo1)
+
+
+
+cld(emmeans(modelo1, ~ Tratamiento),type="response", 
+    alpha   = 0.05, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+tb_means <- emmeans(modelo1, spec = ~Tratamiento) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE,alpha   = 0.05) |>
+  as.data.frame() #%>% dplyr::mutate(Grupo=c("a", "ab", "b"))
+
+tb_means
+
+
+gg0<-ggplot(data = tb_means,
+            mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))
+
+gg0
+
+
+##########  Anova pureza #######
+
+Pureza<-Data2 %>% filter(Descripcion%in%c("Kabanu", "San Rafael", "San Felipe Quintanal"), Pureza>1)
+
+
+modelo1<-lm(Rendimiento~Tratamiento, data = Pureza
+            )
+influenceIndexPlot(modelo1,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo1))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo1)
+
+
+
+tb_means <- emmeans(modelo1, spec = ~Tratamiento) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE,alpha   = 0.05) |>
+  as.data.frame() #%>% dplyr::mutate(Grupo=c("a", "ab", "b"))
+
+tb_means
+
+
+gg0<-ggplot(data = tb_means,
+            mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))
+
+gg0
+
+
+
+#########  Anova ################
+
+modelo1<-lm(TCH~Tratamiento*Siembra+Replica, data = Data2 #%>% filter(Cuadrante=="Centro Bajo")
+            )
+influenceIndexPlot(modelo1,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo1))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo1)
+
+cld(emmeans(modelo1, ~ Tratamiento|Siembra),type="response", 
+    alpha   = 0.1, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+
+tb_means <- emmeans(modelo1, spec = ~Tratamiento|Siembra) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE,alpha   = 0.05) |>
+  as.data.frame() #%>% dplyr::mutate(Grupo=c("a", "ab", "b"))
+
+tb_means
+
+
+gg0<-ggplot(data = tb_means,
+           mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))+
+  facet_wrap(~Siembra)
+
+gg0
+
+#########  MLG cuadrante ################
+
+modelo2<-lmer(TCH~Tratamiento*N_Produc+(Replica|Bloque), data = Data2)
+influenceIndexPlot(modelo2,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo2))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo2)
+
+cld(emmeans(modelo2, ~ Tratamiento|N_Produc),type="response", 
+    alpha   = 0.1, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+
+tb_means2 <- emmeans(modelo2, spec = ~Tratamiento|N_Produc) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE) |>
+  as.data.frame()
+tb_means2
+
+gg<-ggplot(data = tb_means2,
+       mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))+
+  facet_wrap(~N_Produc)
+
+gg
+
+
+#
+
+
+
+
+
+
+#########  MLG General ################
+
+modelo2<-lmer(TCH~Tratamiento+(Replica|Bloque), data = Data2# %>% filter(Pais=="GT")
+              )
+influenceIndexPlot(modelo2,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo2))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo2)
+
+Data2 %>% filter(Pais=="GT") %>% 
+  dplyr::group_by(Tratamiento) %>% summarise(n=length(TCH), TCH=mean(TCH))
+
+
+cld(emmeans(modelo2, ~ Tratamiento),type="response", 
+    alpha   = 0.1, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+
+tb_means2 <- emmeans(modelo2, spec = ~Tratamiento) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE) |>
+  as.data.frame()
+tb_means2
+
+gg<-ggplot(data = tb_means2,
+           mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))
+
+gg
+
+############  TCH Relativos general #################
+
+modelo3<-lm(Rend_Rel~Tratamiento, data = Data2 %>% filter(Pais=="GT")
+            )
+influenceIndexPlot(modelo3,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo3))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo3)
+
+cld(emmeans(modelo3, ~ Tratamiento),type="response", 
+    alpha   = 0.05, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+tb_means3 <- emmeans(modelo3, spec = ~Tratamiento) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE,alpha   = 0.1) |>
+  as.data.frame()
+tb_means3
+
+gg1<-ggplot(data = tb_means3,
+       mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH Relativo", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))#+
+  #facet_wrap(~Pais)
+
+gg1
+
+library(patchwork)
+
+
+grafico00 <-(gg+gg1)+
+  plot_annotation(tag_levels = c('A', '1'))&  #, tag_prefix = '(',tag_sep = '.', tag_suffix = ')'
+  theme(plot.tag = element_text(size = 10, hjust = 0, vjust = 0))  #plot.tag.position = c(-0.035, 0.95),
+
+grafico00 
+
+ggsave("Distanciamiento_Siembra.png", grafico00, width = 250, height = 120, dpi = 900, units = "mm")
+
+
+############## Por productividad y altitud ################
+      
+
+modelo3<-lm(TCH_Rel~Tratamiento*Altitud, data = Data2 %>% filter(Pais=="GT")
+            )
+influenceIndexPlot(modelo3,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo3))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo3)
+
+cld(emmeans(modelo3, ~ Tratamiento|Altitud),type="response", 
+    alpha   = 0.05, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+tb_means3 <- emmeans(modelo3, spec = ~Tratamiento|Altitud) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE,alpha   = 0.1) |>
+  as.data.frame()
+tb_means3
+
+gg2<-ggplot(data = tb_means3,
+            mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH Relativo", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))+facet_wrap(~Altitud)
+
+gg2
+
+
+
+modelo3<-lm(TCH_Rel~Tratamiento*N_Produc, data = Data2 %>% filter(Pais=="GT")
+)
+influenceIndexPlot(modelo3,vars=c('Studentized','Cook','Hat'),id.n=3)
+shapiro.test(resid(modelo3))
+bartlett.test(TCH~Tratamiento,data = Data2)
+Anova(modelo3)
+
+cld(emmeans(modelo3, ~ Tratamiento|N_Produc),type="response", 
+    alpha   = 0.05, Letters = letters, 
+    adjust  = "bonferroni", reversed=T) 
+
+
+tb_means3 <- emmeans(modelo3, spec = ~Tratamiento|N_Produc) |>
+  multcomp::cld(Letters = letters, sort = TRUE, reverse = TRUE,alpha   = 0.1) |>
+  as.data.frame()
+tb_means3
+
+gg3<-ggplot(data = tb_means3,
+            mapping = aes(y = reorder(Tratamiento, -emmean))) +
+  geom_errorbarh(mapping = aes(xmin = emmean-SE, xmax = emmean+SE),
+                 height = 0.06) +
+  geom_point(mapping = aes(x = emmean)) +
+  geom_text(mapping = aes(x = emmean,
+                          label = sprintf("%0.2f %s",
+                                          emmean,
+                                          trimws(.group))),size = 6,family="Arial",
+            vjust = -1)+
+  labs(x="TCH Relativo", y="Distanciamiento de siembra")+theme_classic2()+
+  theme(text=element_text(family="Arial",size = 12))+facet_wrap(~N_Produc)
+
+gg3
+
+
+
+
+library(patchwork)
+
+
+grafico00 <-(gg3+gg2)+
+  plot_annotation(tag_levels = c('A', '1'))&  #, tag_prefix = '(',tag_sep = '.', tag_suffix = ')'
+  theme(plot.tag = element_text(size = 10, hjust = 0, vjust = 0))  #plot.tag.position = c(-0.035, 0.95),
+
+grafico00 
+
+ggsave("Distanciamiento_Siembra1.png", grafico00, width = 430, height = 150, dpi = 900, units = "mm")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
