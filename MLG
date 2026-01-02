@@ -103,6 +103,7 @@ pairs_qp_trat <- pairs(ems_qp_trat, adjust = "tukey")
 print(ems_qp_trat)
 print(pairs_qp_trat)
 
+
 # 3. MODELO QUASI-BINOMIAL (para porcentajes 0-100%)
 # Convertir porcentaje a proporción
 datos$prop_porcentaje <- datos$porcentaje / 100
@@ -193,3 +194,5 @@ ggplot(resultados_grafico, aes(x = Tratamiento, y = Media, fill = Modelo)) +
   geom_bar(stat = "identity", position = "dodge") +
   labs(title = "Comparación de medias ajustadas por modelo", y = "Media ajustada") +
   theme_minimal()
+
+# 5. Modelo Poisson 
