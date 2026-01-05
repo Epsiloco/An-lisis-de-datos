@@ -1,0 +1,96 @@
+# Funciones de R
+6+2
+7*2
+8/(2+9)
+8-9
+
+# Vectores
+
+vector<- 2
+vector 
+
+frutas<- "pera"
+frutas
+
+# función: fx(argumento 1, argumento 2....n)
+
+numeros <- c(2, 4, 8, 10)
+numeros
+hortalizas<- c("lechuga", "rabano", "tomate")
+hortalizas
+
+numeros_hortalizas<- c("lechuga", "tomate", 1, 2, 4)
+numeros_hortalizas
+a<- c(3,2, "lechuga")
+a
+
+# Operaciones con vectores
+
+x <- 5
+y <- 10
+
+x+y
+x*y
+z<- x/y
+z
+
+resultados <- c(2,4,76,1)
+notas <- c(5, 2)
+print(final<- resultados*notas)
+final
+
+final2<- resultados+notas
+final2
+
+valor<- 2
+valor
+
+valor2 <- 3L
+valor2
+
+logico<- FALSE
+logico
+
+print(final)
+
+r<- 100+resultados; r
+
+# Listas
+
+herramientas<- list("martillo", "destornillador", "clavos", "machete")
+herramientas
+
+c<- c("plagas", "enfermedades", "madurantes")
+p <- c(1,6,5 )
+
+productos <- list(problemas = c, insumos = p)
+productos
+
+# Matriz
+m <- matrix(c(1,4,6,7,8,9), nrow = 2, ncol = 3)
+m
+matrix(c(2, 6, 4), nrow = 1, ncol =3)
+a<- matrix(c(3,665,8,9,5,2),  3,2)
+a
+
+nombres<- list(c("dato1", "dato2"), c("col1", "col2", "col3"))
+
+m <- matrix(c(1,4,6,7,8,9), nrow = 2, ncol = 3, dimnames = nombres)
+m
+
+dimnames(datos_curso)<- list(c("nombres", "edades"), c("estudiante1", "estudiante2", "estudiante3"))
+datos_curso<- matrix(c("ana", "luis", "pedro", 25, 26, 28), nrow = 2, ncol = 3)
+datos_curso
+
+
+datos1<- c(100, 355, 678)
+datos2<- c(3,4,6)
+datos3<- c(4,1,6)
+matriz_final<- cbind(datos1, datos2, datos3)
+matriz_final
+
+matriz_final<- rbind(datos1, datos2, datos3)
+matriz_final
+
+# Operaciones con matrices
+
