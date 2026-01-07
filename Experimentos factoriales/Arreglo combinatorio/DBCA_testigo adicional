@@ -1,1 +1,114 @@
+################# Arreglo factorial combinatorio con tratamiento adicional
 
+
+library(emmeans)
+library(dplyr)
+library(multcomp)
+library(multcompView)
+library(ggplot2)
+library(patchwork)
+library(agricolae)
+
+respuestas <- c("rendimiento_kg_ton", "tch", "tah", "pureza")
+factores <- c("volumen", "dosis") 
+bloq <- "Replica"
+col_trata <- "Tratamiento"      
+n_testigo <- "Testigo"
+alpha <- 0.15                   
+opcion_visualizacion <- "panel" # "separados", "panel" o "ambos"
+
+# --- Coeficientes de contrastes ortogonales----
+coefs_manuales <- c(9, -1, -1, -1, -1, -1, -1, -1, -1, -1)
+
+for (var in respuestas) {
+  message(paste("Procesando análisis y gráficos para:", var))
+  
+  f_global <- as.formula(paste0("`", var, "` ~ `", col_trata, "` + `", bloq, "`"))
+  mod_global <- aov(f_global, data = datos)
+  an_g <- summary(mod_global)[[1]]
+  
+
+  emm_g_df <- as.data.frame(emmeans(mod_global, col_trata))
+  r_val <- mean(datos %>% group_by(.data[[col_trata]]) %>% summarise(n=n()) %>% pull(n))
+  sc_contraste <- (sum(coefs_manuales * emm_g_df$emmean)^2) / sum((coefs_manuales^2) / r_val)
+  
+  
+  datos_fact <- datos %>% filter(.data[[col_trata]] != n_testigo)
+  f_fact <- as.formula(paste0("`", var, "` ~ ", paste(factores, collapse="*"), " + `", bloq, "`"))
+  mod_aux <- aov(f_fact, data = datos_fact)
+  an_f <- summary(mod_aux)[[1]]
+  
+  # ANOVA final
+  fv_f_reales <- setdiff(rownames(an_f), c(bloq, "Residuals"))
+  tabla_unificada <- data.frame(
+    FV = c(bloq, fv_f_reales, "Testigo vs Resto", "Error", "Total"),
+    GL = c(an_g[bloq, "Df"], an_f[fv_f_reales, "Df"], 1, an_g["Residuals", "Df"], sum(an_g$Df)),
+    SC = c(an_g[bloq, "Sum Sq"], an_f[fv_f_reales, "Sum Sq"], sc_contraste, an_g["Residuals", "Sum Sq"], sum(an_g$`Sum Sq`))
+  ) %>% mutate(CM = SC/GL, F_calc = CM/(an_g["Residuals", "Sum Sq"]/an_g["Residuals", "Df"]), 
+               p_val = pf(F_calc, GL, an_g["Residuals", "Df"], lower.tail = FALSE))
+  print(tabla_unificada)
+  
+  # Gráficos PEC
+  f1 <- factores[1]; f2 <- factores[2]
+  
+  generar_plot_efecto <- function(factor_nom, titulo) {
+    res <- HSD.test(mod_aux, factor_nom, alpha = alpha)$groups
+    res[[factor_nom]] <- rownames(res)
+    
+    df_p <- datos_fact %>%
+      group_by(.data[[factor_nom]]) %>%
+      summarise(emmean = mean(.data[[var]], na.rm = TRUE),
+                SE = sd(.data[[var]], na.rm = TRUE) / sqrt(n()), .groups = "drop") %>%
+      left_join(res, by = factor_nom)
+    
+    ggplot(df_p, aes(y = reorder(.data[[factor_nom]], emmean), x = emmean)) +
+      geom_errorbarh(aes(xmin = emmean - SE, xmax = emmean + SE), height = 0.1, color = "black") +
+      geom_point(size = 3, color = "black") +
+      geom_text(aes(label = sprintf("%.2f %s", emmean, trimws(groups))), 
+                hjust = -0.2, vjust = -1.2, size = 3.5, fontface = "bold") +
+      scale_x_continuous(expand = expansion(mult = c(0.1, 0.4))) +
+      labs(title = titulo, x = "Media ± SE", y = factor_nom) +
+      theme_bw() + 
+      theme(plot.title = element_text(face = "bold"), panel.grid.minor = element_blank())
+  }
+  
+  generar_plot_interaccion <- function() {
+    tk_int <- HSD.test(mod_aux, c(f1, f2), alpha = alpha)$groups
+    tk_int$combinacion <- rownames(tk_int)
+    
+    df_int <- datos_fact %>%
+      group_by(.data[[f1]], .data[[f2]]) %>%
+      summarise(emmean = mean(.data[[var]], na.rm = TRUE),
+                SE = sd(.data[[var]], na.rm = TRUE) / sqrt(n()), .groups = "drop") %>%
+      mutate(combinacion = paste(.data[[f1]], .data[[f2]], sep = ":")) %>%
+      left_join(tk_int[, c("combinacion", "groups")], by = "combinacion")
+    
+    ggplot(df_int, aes(y = reorder(.data[[f2]], emmean), x = emmean)) +
+      geom_errorbarh(aes(xmin = emmean - SE, xmax = emmean + SE), height = 0.1, color = "black") +
+      geom_point(size = 3, color = "black") +
+      geom_text(aes(label = sprintf("%.2f %s", emmean, trimws(groups))), 
+                hjust = -0.1, vjust = -1.2, size = 3.2, fontface = "bold") +
+      facet_wrap(as.formula(paste("~", f1)), scales = "free_y") +
+      scale_x_continuous(expand = expansion(mult = c(0.1, 0.4))) +
+      labs(title = paste("Interacción:", f1, "x", f2), subtitle = paste("Variable:", var), 
+           x = "Media ± SE", y = f2) +
+      theme_bw() + 
+      theme(strip.background = element_rect(fill = "grey"), 
+            strip.text = element_text(color = "black", face = "bold", size = 10),
+            panel.grid.minor = element_blank())
+  }
+  
+  # 4. EJECUCIÓN Y GUARDADO
+  p1 <- generar_plot_efecto(f1, paste("Efecto Principal:", f1))
+  p2 <- generar_plot_efecto(f2, paste("Efecto Principal:", f2))
+  p_int <- generar_plot_interaccion()
+  
+  if (opcion_visualizacion %in% c("separados", "ambos")) {
+    print(p1); print(p2); print(p_int)
+  }
+  
+  if (opcion_visualizacion %in% c("panel", "ambos")) {
+    panel_completo <- (p1 | p2) / p_int + 
+      plot_annotation(title = paste("ANÁLISIS DE ARREGLO FACTORIAL + TESTIGO:", toupper(var)),
+                      theme = theme(plot.title = element_text(size = 14, face = "bold")))
+    print(panel_completo)}}
