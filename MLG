@@ -196,3 +196,53 @@ ggplot(resultados_grafico, aes(x = Tratamiento, y = Media, fill = Modelo)) +
   theme_minimal()
 
 # 5. Modelo Poisson 
+
+library(ggplot2)
+library(emmeans)
+library(car)
+
+# 1. Ajuste del Modelo Poisson
+# Reemplaza 'variable_conteo' por tu variable dependiente (debe ser entera >= 0)
+modelo_poisson <- glm(tallos_ha ~ Tratamiento, 
+                      data = datos, 
+                      family = poisson(link = "log"))
+
+# 2. Resumen del modelo
+cat("\n--- Resumen del Modelo Poisson ---\n")
+print(summary(modelo_poisson))
+
+# 3. Prueba de Significación Global (Análisis de Desviación)
+cat("\n--- Análisis de Desviación (ANOVA para GLM) ---\n")
+print(Anova(modelo_poisson, type = "III"))
+
+# 4. Verificación de Sobredispersión
+# Si el cociente (Residual deviance / df) es mucho mayor a 1, hay sobredispersión
+phi <- summary(modelo_poisson)$deviance / summary(modelo_poisson)$df.residual
+cat("\nFactor de Dispersión Estimado:", phi, "\n")
+
+if(phi > 1.5) {
+  cat("Aviso: Hay sobredispersión detectada. Se recomienda usar family = quasipoisson.\n")
+}
+
+# 5. Comparaciones Múltiples (Medias Estimadas)
+# Los resultados se devuelven en la escala original (type = 'response')
+emm_poisson <- emmeans(modelo_poisson, ~ Tratamiento, type = "response")
+cld_poisson <- as.data.frame(pairs(emm_poisson))
+
+cat("\n--- Comparaciones de Medias (Ratios) ---\n")
+print(emm_poisson)
+
+# 6. Gráfico de Diagnóstico de Residuos
+par(mfrow = c(2, 2))
+plot(modelo_poisson)
+par(mfrow = c(1, 1))
+
+# 7. Gráfico de Resultados
+ggplot(as.data.frame(emm_poisson), aes(x = Tratamiento, y = rate)) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.2) +
+  geom_point(size = 3, color = "darkblue") +
+  labs(title = "Medias Estimadas - Distribución Poisson",
+       subtitle = "Intervalos de confianza al 95%",
+       y = "Conteo Estimado (Rate)",
+       x = "Tratamiento") +
+  theme_minimal()
