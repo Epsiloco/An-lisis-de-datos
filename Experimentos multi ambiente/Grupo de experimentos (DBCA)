@@ -76,3 +76,79 @@ sk2<- SK(mod,
         which="Loc",
         sig.level = 0.05)
 summary(sk2)
+
+
+
+
+##############################################################################################################
+
+
+####################### Experimentos multiambiente con modelo lineal de efectos fijos #################
+
+names(datos)
+
+mod <- aov(pureza ~ volumen + zafra + Error(Replica %in% zafra) + volumen:zafra, data=datos)
+summary(mod)
+
+mod1 <- aov(pureza ~ datos$volumen + datos$zafra + Error(datos$Replica/datos$zafra) + datos$zafra:datos$volumen)
+summary(mod1)
+
+#Verificación de supuestos
+#Residuos vs predichos
+resp1<-aov(pureza ~ volumen*zafra+ Replica/zafra)
+summary(resp1)
+plot(resp1,1)
+#QQ-plot
+plot(resp1,2)
+#Prueba de Shapiro Wilks
+shapiro.test(resp1$residuals)
+
+
+#Prueba múltiple de medias (Scott Knott)
+sk1<- SK(mod,
+         data=datos,
+         which="volumen",
+         sig.level = 0.15)
+summary(sk1)
+
+sk2<- SK(mod,
+         data=datos,
+         which="zafra",
+         sig.level = 0.15)
+summary(sk2)
+
+
+
+
+# Modelo mixto para multiambientales: diferente finca y diferente año 
+names(datos)
+
+datos$Ambiente <- as.factor(paste(datos$ingenio, datos$zafra, sep = "_"))
+
+modelo_tch <- lmer(pureza ~ volumen + (1|Ambiente) + (1|Ambiente:Replica), data = datos)
+anova(modelo_tch)
+
+medias_ajustadas <- emmeans(modelo_tch, ~ volumen)
+
+
+cld(medias_ajustadas, Letters = letters, reverse = TRUE)
+
+
+
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(multcomp)
+library(multcompView)
+
+modelo_para_ambientes <- lmer(rendimiento ~ volumen + Ambiente + (1|Ambiente:Replica), data = datos)
+
+tukey_ambientes <- emmeans(modelo_para_ambientes, pairwise ~ Ambiente)
+
+summary(tukey_ambientes$contrasts)
+
+tukey_letras <- cld(tukey_ambientes$emmeans, Letters = letters, reverse = TRUE, alpha = 0.15)
+print(tukey_letras)
+
+
+
