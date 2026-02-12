@@ -1,0 +1,25 @@
+install.packages("writexl")
+library(writexl)
+
+library(dplyr)
+levels(datos$Tratamiento)
+
+datos$Tratamiento <- as.factor(datos$Tratamiento)
+class(datos$Tratamiento)
+datos <- datos %>%
+  mutate(divisor = case_when(
+    Tratamiento == "1" ~ 1,
+    Tratamiento == "3" ~ 1.25,
+    Tratamiento == "5" ~ 1.5,
+    Tratamiento == "7" ~ 1.75,
+    TRUE ~ 1 # Por si hay otros tratamientos, no altera el valor
+  )) %>%
+  mutate(across(starts_with("Surco"), ~ . / divisor)) %>%
+  select(-divisor) # Eliminamos la columna auxiliar
+
+
+# 4. Guardar el resultado en un archivo de Excel
+write_xlsx(datos, path = "Datos_Surcos_Ajustados.xlsx")
+
+# Mensaje de confirmación
+message("¡Archivo guardado exitosamente como Datos_Surcos_Ajustados.xlsx!")
